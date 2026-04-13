@@ -1,0 +1,2126 @@
+Created by PLY version 3.11 (http://www.dabeaz.com/ply)
+
+Unused terminals:
+
+    AT
+    AVG
+    BA
+    COUNTU
+    GT
+    GTE
+    INTERNAL
+    LT
+    LTE
+    MAX
+    MICROSECOND
+    MIN
+    MINUS
+    PLUS
+    RECEPTIONTIME
+    SLIDING
+    STDEV
+    SUM
+    TUMBLING
+
+Grammar
+
+Rule 0     S' -> cepal_construct
+Rule 1     cepal_construct -> global_configurations event_type_definitions process_schema event_distributions
+Rule 2     global_configurations -> base_time_granularity time_range optional_resource
+Rule 3     base_time_granularity -> BASE_TIME_GRANULARITY EQ NUMBER time_unit
+Rule 4     time_range -> START EQ time_val COMMA END EQ time_val
+Rule 5     time_val -> NUMBER time_unit
+Rule 6     time_val -> NUMBER
+Rule 7     time_unit -> MICROSSECOND
+Rule 8     time_unit -> SECOND
+Rule 9     time_unit -> MINUTE
+Rule 10    time_unit -> HOUR
+Rule 11    time_unit -> DAY
+Rule 12    optional_resource -> RESOURCES TABLES table_resources VARIABLES variables FUNCTIONS custom_functions
+Rule 13    table_resources -> ID COMMA table_resources
+Rule 14    table_resources -> END TABLES
+Rule 15    variables -> value_bound COMMA variables
+Rule 16    variables -> END VARIABLES
+Rule 17    value_bound -> ID EQ LPAREN values COMMA values RPAREN
+Rule 18    values -> NUMBER
+Rule 19    values -> LSPAREN numbers RSPAREN
+Rule 20    numbers -> numbers COMMA NUMBER
+Rule 21    numbers -> NUMBER
+Rule 22    custom_functions -> ID COMMA custom_functions
+Rule 23    custom_functions -> END FUNCTIONS
+Rule 24    event_type_definitions -> event_type_definitions event_type_definition
+Rule 25    event_type_definitions -> event_type_definition
+Rule 26    event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+Rule 27    functional_dependencies -> source_event_list FA target_event_list
+Rule 28    source_event_list -> LPAREN event_list RPAREN
+Rule 29    source_event_list -> ID
+Rule 30    target_event_list -> LPAREN event_list RPAREN
+Rule 31    target_event_list -> ID
+Rule 32    target_event_list -> ALL
+Rule 33    attributes -> attributes COMMA attribute
+Rule 34    attributes -> attribute
+Rule 35    attribute -> ID COLON attribute_type
+Rule 36    attribute_type -> global_restricted
+Rule 37    attribute_type -> table_reference
+Rule 38    attribute_type -> event_reference
+Rule 39    attribute_type -> raw_value
+Rule 40    global_restricted -> IN ID
+Rule 41    table_reference -> ID LPAREN table_values RPAREN FOREIGNKEY
+Rule 42    table_reference -> ID LPAREN table_values RPAREN
+Rule 43    table_values -> table_values COMMA ID
+Rule 44    table_values -> ID
+Rule 45    event_reference -> INHERIT ID LPAREN event_values RPAREN FOREIGNKEY
+Rule 46    event_reference -> INHERIT ID LPAREN event_values RPAREN
+Rule 47    event_values -> event_values COMMA ID
+Rule 48    event_values -> ID
+Rule 49    raw_value -> INTEGER
+Rule 50    raw_value -> STRING
+Rule 51    raw_value -> FLOAT
+Rule 52    raw_value -> CHAR LPAREN NUMBER RPAREN
+Rule 53    process_schema -> start_rule rules
+Rule 54    start_rule -> ID COLON CAUSE START SEMICOLON target_event
+Rule 55    target_event -> ID time_condition count_condition
+Rule 56    time_condition -> TIME BETWEEN time_val AND time_val
+Rule 57    time_condition -> TIME EXACTLY time_val
+Rule 58    time_condition -> empty
+Rule 59    count_condition -> COUNT BETWEEN time_val AND time_val
+Rule 60    count_condition -> COUNT EXACTLY time_val
+Rule 61    count_condition -> empty
+Rule 62    rules -> rules causation_rule
+Rule 63    rules -> rules termination_rule
+Rule 64    rules -> causation_rule
+Rule 65    rules -> termination_rule
+Rule 66    causation_rule -> ID COLON CAUSE event_list SEMICOLON target_event
+Rule 67    event_list -> ID COMMA event_list
+Rule 68    event_list -> ID
+Rule 69    termination_rule -> TERMINATE ID
+Rule 70    termination_rule -> TERMINATE ID SEMICOLON event_list
+Rule 71    event_distributions -> count_distribution event_distributions
+Rule 72    event_distributions -> time_distribution event_distributions
+Rule 73    event_distributions -> END
+Rule 74    time_distribution -> CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+Rule 75    count_distribution -> CREATE COUNT DISTRIBUTION FOR ID LPAREN distribution_list RPAREN
+Rule 76    distribution_list -> distribution COMMA distribution_list
+Rule 77    distribution_list -> distribution
+Rule 78    distribution -> distribution_range COLON NUMBER
+Rule 79    distribution_range -> LSPAREN NUMBER COMMA NUMBER RPAREN
+Rule 80    empty -> <empty>
+
+Terminals, with rules where they appear
+
+ALL                  : 32
+AND                  : 56 59
+AT                   : 
+AVG                  : 
+BA                   : 
+BASE_TIME_GRANULARITY : 3 74
+BETWEEN              : 56 59
+CAUSE                : 54 66
+CHAR                 : 52
+COLON                : 35 54 66 78
+COMMA                : 4 13 15 17 20 22 26 26 26 33 43 47 67 74 76 79
+COUNT                : 59 60 75
+COUNTU               : 
+CREATE               : 26 74 75
+DAY                  : 11
+DISTRIBUTION         : 74 75
+END                  : 4 14 16 23 73
+EQ                   : 3 4 4 17 74
+EVENTTIME            : 26
+EVENTTYPE            : 26
+EXACTLY              : 57 60
+FA                   : 27
+FLOAT                : 51
+FOR                  : 74 75
+FOREIGNKEY           : 41 45
+FUNCTIONS            : 12 23
+GT                   : 
+GTE                  : 
+HOUR                 : 10
+ID                   : 13 17 22 26 29 31 35 40 41 42 43 44 45 46 47 48 54 55 66 67 68 69 70 74 75
+IN                   : 40
+INGESTTIME           : 26
+INHERIT              : 45 46
+INTEGER              : 49
+INTERNAL             : 
+LPAREN               : 17 26 26 26 28 30 41 42 45 46 52 74 75
+LSPAREN              : 19 79
+LT                   : 
+LTE                  : 
+MAX                  : 
+MAXDELAY             : 26
+MICROSECOND          : 
+MICROSSECOND         : 7
+MIN                  : 
+MINUS                : 
+MINUTE               : 9
+NUMBER               : 3 5 6 18 20 21 26 26 26 52 78 79 79
+PLUS                 : 
+RECEPTIONTIME        : 
+RESOURCES            : 12
+RPAREN               : 17 26 26 26 28 30 41 42 45 46 52 74 75 79
+RSPAREN              : 19
+SECOND               : 8
+SEMICOLON            : 54 66 70
+SLIDING              : 
+START                : 4 54
+STDEV                : 
+STRING               : 50
+SUM                  : 
+TABLES               : 12 14
+TERMINATE            : 69 70
+TIME                 : 56 57 74
+TUMBLING             : 
+VARIABLES            : 12 16
+error                : 
+
+Nonterminals, with rules where they appear
+
+attribute            : 33 34
+attribute_type       : 35
+attributes           : 26 33
+base_time_granularity : 2
+causation_rule       : 62 64
+cepal_construct      : 0
+count_condition      : 55
+count_distribution   : 71
+custom_functions     : 12 22
+distribution         : 76 77
+distribution_list    : 74 75 76
+distribution_range   : 78
+empty                : 58 61
+event_distributions  : 1 71 72
+event_list           : 28 30 66 67 70
+event_reference      : 38
+event_type_definition : 24 25
+event_type_definitions : 1 24
+event_values         : 45 46 47
+functional_dependencies : 26
+global_configurations : 1
+global_restricted    : 36
+numbers              : 19 20
+optional_resource    : 2
+process_schema       : 1
+raw_value            : 39
+rules                : 53 62 63
+source_event_list    : 27
+start_rule           : 53
+table_reference      : 37
+table_resources      : 12 13
+table_values         : 41 42 43
+target_event         : 54 66
+target_event_list    : 27
+termination_rule     : 63 65
+time_condition       : 55
+time_distribution    : 72
+time_range           : 2
+time_unit            : 3 5
+time_val             : 4 4 56 56 57 59 59 60 74
+value_bound          : 15
+values               : 17 17
+variables            : 12 15
+
+Parsing method: LALR
+
+state 0
+
+    (0) S' -> . cepal_construct
+    (1) cepal_construct -> . global_configurations event_type_definitions process_schema event_distributions
+    (2) global_configurations -> . base_time_granularity time_range optional_resource
+    (3) base_time_granularity -> . BASE_TIME_GRANULARITY EQ NUMBER time_unit
+
+    BASE_TIME_GRANULARITY shift and go to state 4
+
+    cepal_construct                shift and go to state 1
+    global_configurations          shift and go to state 2
+    base_time_granularity          shift and go to state 3
+
+state 1
+
+    (0) S' -> cepal_construct .
+
+
+
+state 2
+
+    (1) cepal_construct -> global_configurations . event_type_definitions process_schema event_distributions
+    (24) event_type_definitions -> . event_type_definitions event_type_definition
+    (25) event_type_definitions -> . event_type_definition
+    (26) event_type_definition -> . CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    CREATE          shift and go to state 7
+
+    event_type_definitions         shift and go to state 5
+    event_type_definition          shift and go to state 6
+
+state 3
+
+    (2) global_configurations -> base_time_granularity . time_range optional_resource
+    (4) time_range -> . START EQ time_val COMMA END EQ time_val
+
+    START           shift and go to state 9
+
+    time_range                     shift and go to state 8
+
+state 4
+
+    (3) base_time_granularity -> BASE_TIME_GRANULARITY . EQ NUMBER time_unit
+
+    EQ              shift and go to state 10
+
+
+state 5
+
+    (1) cepal_construct -> global_configurations event_type_definitions . process_schema event_distributions
+    (24) event_type_definitions -> event_type_definitions . event_type_definition
+    (53) process_schema -> . start_rule rules
+    (26) event_type_definition -> . CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+    (54) start_rule -> . ID COLON CAUSE START SEMICOLON target_event
+
+    CREATE          shift and go to state 7
+    ID              shift and go to state 14
+
+    process_schema                 shift and go to state 11
+    event_type_definition          shift and go to state 12
+    start_rule                     shift and go to state 13
+
+state 6
+
+    (25) event_type_definitions -> event_type_definition .
+
+    CREATE          reduce using rule 25 (event_type_definitions -> event_type_definition .)
+    ID              reduce using rule 25 (event_type_definitions -> event_type_definition .)
+
+
+state 7
+
+    (26) event_type_definition -> CREATE . EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    EVENTTYPE       shift and go to state 15
+
+
+state 8
+
+    (2) global_configurations -> base_time_granularity time_range . optional_resource
+    (12) optional_resource -> . RESOURCES TABLES table_resources VARIABLES variables FUNCTIONS custom_functions
+
+    RESOURCES       shift and go to state 17
+
+    optional_resource              shift and go to state 16
+
+state 9
+
+    (4) time_range -> START . EQ time_val COMMA END EQ time_val
+
+    EQ              shift and go to state 18
+
+
+state 10
+
+    (3) base_time_granularity -> BASE_TIME_GRANULARITY EQ . NUMBER time_unit
+
+    NUMBER          shift and go to state 19
+
+
+state 11
+
+    (1) cepal_construct -> global_configurations event_type_definitions process_schema . event_distributions
+    (71) event_distributions -> . count_distribution event_distributions
+    (72) event_distributions -> . time_distribution event_distributions
+    (73) event_distributions -> . END
+    (75) count_distribution -> . CREATE COUNT DISTRIBUTION FOR ID LPAREN distribution_list RPAREN
+    (74) time_distribution -> . CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+
+    END             shift and go to state 23
+    CREATE          shift and go to state 24
+
+    event_distributions            shift and go to state 20
+    count_distribution             shift and go to state 21
+    time_distribution              shift and go to state 22
+
+state 12
+
+    (24) event_type_definitions -> event_type_definitions event_type_definition .
+
+    CREATE          reduce using rule 24 (event_type_definitions -> event_type_definitions event_type_definition .)
+    ID              reduce using rule 24 (event_type_definitions -> event_type_definitions event_type_definition .)
+
+
+state 13
+
+    (53) process_schema -> start_rule . rules
+    (62) rules -> . rules causation_rule
+    (63) rules -> . rules termination_rule
+    (64) rules -> . causation_rule
+    (65) rules -> . termination_rule
+    (66) causation_rule -> . ID COLON CAUSE event_list SEMICOLON target_event
+    (69) termination_rule -> . TERMINATE ID
+    (70) termination_rule -> . TERMINATE ID SEMICOLON event_list
+
+    ID              shift and go to state 28
+    TERMINATE       shift and go to state 29
+
+    rules                          shift and go to state 25
+    causation_rule                 shift and go to state 26
+    termination_rule               shift and go to state 27
+
+state 14
+
+    (54) start_rule -> ID . COLON CAUSE START SEMICOLON target_event
+
+    COLON           shift and go to state 30
+
+
+state 15
+
+    (26) event_type_definition -> CREATE EVENTTYPE . ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    ID              shift and go to state 31
+
+
+state 16
+
+    (2) global_configurations -> base_time_granularity time_range optional_resource .
+
+    CREATE          reduce using rule 2 (global_configurations -> base_time_granularity time_range optional_resource .)
+
+
+state 17
+
+    (12) optional_resource -> RESOURCES . TABLES table_resources VARIABLES variables FUNCTIONS custom_functions
+
+    TABLES          shift and go to state 32
+
+
+state 18
+
+    (4) time_range -> START EQ . time_val COMMA END EQ time_val
+    (5) time_val -> . NUMBER time_unit
+    (6) time_val -> . NUMBER
+
+    NUMBER          shift and go to state 34
+
+    time_val                       shift and go to state 33
+
+state 19
+
+    (3) base_time_granularity -> BASE_TIME_GRANULARITY EQ NUMBER . time_unit
+    (7) time_unit -> . MICROSSECOND
+    (8) time_unit -> . SECOND
+    (9) time_unit -> . MINUTE
+    (10) time_unit -> . HOUR
+    (11) time_unit -> . DAY
+
+    MICROSSECOND    shift and go to state 36
+    SECOND          shift and go to state 37
+    MINUTE          shift and go to state 38
+    HOUR            shift and go to state 39
+    DAY             shift and go to state 40
+
+    time_unit                      shift and go to state 35
+
+state 20
+
+    (1) cepal_construct -> global_configurations event_type_definitions process_schema event_distributions .
+
+    $end            reduce using rule 1 (cepal_construct -> global_configurations event_type_definitions process_schema event_distributions .)
+
+
+state 21
+
+    (71) event_distributions -> count_distribution . event_distributions
+    (71) event_distributions -> . count_distribution event_distributions
+    (72) event_distributions -> . time_distribution event_distributions
+    (73) event_distributions -> . END
+    (75) count_distribution -> . CREATE COUNT DISTRIBUTION FOR ID LPAREN distribution_list RPAREN
+    (74) time_distribution -> . CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+
+    END             shift and go to state 23
+    CREATE          shift and go to state 24
+
+    count_distribution             shift and go to state 21
+    event_distributions            shift and go to state 41
+    time_distribution              shift and go to state 22
+
+state 22
+
+    (72) event_distributions -> time_distribution . event_distributions
+    (71) event_distributions -> . count_distribution event_distributions
+    (72) event_distributions -> . time_distribution event_distributions
+    (73) event_distributions -> . END
+    (75) count_distribution -> . CREATE COUNT DISTRIBUTION FOR ID LPAREN distribution_list RPAREN
+    (74) time_distribution -> . CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+
+    END             shift and go to state 23
+    CREATE          shift and go to state 24
+
+    time_distribution              shift and go to state 22
+    event_distributions            shift and go to state 42
+    count_distribution             shift and go to state 21
+
+state 23
+
+    (73) event_distributions -> END .
+
+    $end            reduce using rule 73 (event_distributions -> END .)
+
+
+state 24
+
+    (75) count_distribution -> CREATE . COUNT DISTRIBUTION FOR ID LPAREN distribution_list RPAREN
+    (74) time_distribution -> CREATE . TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+
+    COUNT           shift and go to state 43
+    TIME            shift and go to state 44
+
+
+state 25
+
+    (53) process_schema -> start_rule rules .
+    (62) rules -> rules . causation_rule
+    (63) rules -> rules . termination_rule
+    (66) causation_rule -> . ID COLON CAUSE event_list SEMICOLON target_event
+    (69) termination_rule -> . TERMINATE ID
+    (70) termination_rule -> . TERMINATE ID SEMICOLON event_list
+
+    END             reduce using rule 53 (process_schema -> start_rule rules .)
+    CREATE          reduce using rule 53 (process_schema -> start_rule rules .)
+    ID              shift and go to state 28
+    TERMINATE       shift and go to state 29
+
+    causation_rule                 shift and go to state 45
+    termination_rule               shift and go to state 46
+
+state 26
+
+    (64) rules -> causation_rule .
+
+    ID              reduce using rule 64 (rules -> causation_rule .)
+    TERMINATE       reduce using rule 64 (rules -> causation_rule .)
+    END             reduce using rule 64 (rules -> causation_rule .)
+    CREATE          reduce using rule 64 (rules -> causation_rule .)
+
+
+state 27
+
+    (65) rules -> termination_rule .
+
+    ID              reduce using rule 65 (rules -> termination_rule .)
+    TERMINATE       reduce using rule 65 (rules -> termination_rule .)
+    END             reduce using rule 65 (rules -> termination_rule .)
+    CREATE          reduce using rule 65 (rules -> termination_rule .)
+
+
+state 28
+
+    (66) causation_rule -> ID . COLON CAUSE event_list SEMICOLON target_event
+
+    COLON           shift and go to state 47
+
+
+state 29
+
+    (69) termination_rule -> TERMINATE . ID
+    (70) termination_rule -> TERMINATE . ID SEMICOLON event_list
+
+    ID              shift and go to state 48
+
+
+state 30
+
+    (54) start_rule -> ID COLON . CAUSE START SEMICOLON target_event
+
+    CAUSE           shift and go to state 49
+
+
+state 31
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID . LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    LPAREN          shift and go to state 50
+
+
+state 32
+
+    (12) optional_resource -> RESOURCES TABLES . table_resources VARIABLES variables FUNCTIONS custom_functions
+    (13) table_resources -> . ID COMMA table_resources
+    (14) table_resources -> . END TABLES
+
+    ID              shift and go to state 52
+    END             shift and go to state 53
+
+    table_resources                shift and go to state 51
+
+state 33
+
+    (4) time_range -> START EQ time_val . COMMA END EQ time_val
+
+    COMMA           shift and go to state 54
+
+
+state 34
+
+    (5) time_val -> NUMBER . time_unit
+    (6) time_val -> NUMBER .
+    (7) time_unit -> . MICROSSECOND
+    (8) time_unit -> . SECOND
+    (9) time_unit -> . MINUTE
+    (10) time_unit -> . HOUR
+    (11) time_unit -> . DAY
+
+    COMMA           reduce using rule 6 (time_val -> NUMBER .)
+    RESOURCES       reduce using rule 6 (time_val -> NUMBER .)
+    AND             reduce using rule 6 (time_val -> NUMBER .)
+    COUNT           reduce using rule 6 (time_val -> NUMBER .)
+    ID              reduce using rule 6 (time_val -> NUMBER .)
+    TERMINATE       reduce using rule 6 (time_val -> NUMBER .)
+    END             reduce using rule 6 (time_val -> NUMBER .)
+    CREATE          reduce using rule 6 (time_val -> NUMBER .)
+    MICROSSECOND    shift and go to state 36
+    SECOND          shift and go to state 37
+    MINUTE          shift and go to state 38
+    HOUR            shift and go to state 39
+    DAY             shift and go to state 40
+
+    time_unit                      shift and go to state 55
+
+state 35
+
+    (3) base_time_granularity -> BASE_TIME_GRANULARITY EQ NUMBER time_unit .
+
+    START           reduce using rule 3 (base_time_granularity -> BASE_TIME_GRANULARITY EQ NUMBER time_unit .)
+
+
+state 36
+
+    (7) time_unit -> MICROSSECOND .
+
+    START           reduce using rule 7 (time_unit -> MICROSSECOND .)
+    COMMA           reduce using rule 7 (time_unit -> MICROSSECOND .)
+    RESOURCES       reduce using rule 7 (time_unit -> MICROSSECOND .)
+    AND             reduce using rule 7 (time_unit -> MICROSSECOND .)
+    COUNT           reduce using rule 7 (time_unit -> MICROSSECOND .)
+    ID              reduce using rule 7 (time_unit -> MICROSSECOND .)
+    TERMINATE       reduce using rule 7 (time_unit -> MICROSSECOND .)
+    END             reduce using rule 7 (time_unit -> MICROSSECOND .)
+    CREATE          reduce using rule 7 (time_unit -> MICROSSECOND .)
+
+
+state 37
+
+    (8) time_unit -> SECOND .
+
+    START           reduce using rule 8 (time_unit -> SECOND .)
+    COMMA           reduce using rule 8 (time_unit -> SECOND .)
+    RESOURCES       reduce using rule 8 (time_unit -> SECOND .)
+    AND             reduce using rule 8 (time_unit -> SECOND .)
+    COUNT           reduce using rule 8 (time_unit -> SECOND .)
+    ID              reduce using rule 8 (time_unit -> SECOND .)
+    TERMINATE       reduce using rule 8 (time_unit -> SECOND .)
+    END             reduce using rule 8 (time_unit -> SECOND .)
+    CREATE          reduce using rule 8 (time_unit -> SECOND .)
+
+
+state 38
+
+    (9) time_unit -> MINUTE .
+
+    START           reduce using rule 9 (time_unit -> MINUTE .)
+    COMMA           reduce using rule 9 (time_unit -> MINUTE .)
+    RESOURCES       reduce using rule 9 (time_unit -> MINUTE .)
+    AND             reduce using rule 9 (time_unit -> MINUTE .)
+    COUNT           reduce using rule 9 (time_unit -> MINUTE .)
+    ID              reduce using rule 9 (time_unit -> MINUTE .)
+    TERMINATE       reduce using rule 9 (time_unit -> MINUTE .)
+    END             reduce using rule 9 (time_unit -> MINUTE .)
+    CREATE          reduce using rule 9 (time_unit -> MINUTE .)
+
+
+state 39
+
+    (10) time_unit -> HOUR .
+
+    START           reduce using rule 10 (time_unit -> HOUR .)
+    COMMA           reduce using rule 10 (time_unit -> HOUR .)
+    RESOURCES       reduce using rule 10 (time_unit -> HOUR .)
+    AND             reduce using rule 10 (time_unit -> HOUR .)
+    COUNT           reduce using rule 10 (time_unit -> HOUR .)
+    ID              reduce using rule 10 (time_unit -> HOUR .)
+    TERMINATE       reduce using rule 10 (time_unit -> HOUR .)
+    END             reduce using rule 10 (time_unit -> HOUR .)
+    CREATE          reduce using rule 10 (time_unit -> HOUR .)
+
+
+state 40
+
+    (11) time_unit -> DAY .
+
+    START           reduce using rule 11 (time_unit -> DAY .)
+    COMMA           reduce using rule 11 (time_unit -> DAY .)
+    RESOURCES       reduce using rule 11 (time_unit -> DAY .)
+    AND             reduce using rule 11 (time_unit -> DAY .)
+    COUNT           reduce using rule 11 (time_unit -> DAY .)
+    ID              reduce using rule 11 (time_unit -> DAY .)
+    TERMINATE       reduce using rule 11 (time_unit -> DAY .)
+    END             reduce using rule 11 (time_unit -> DAY .)
+    CREATE          reduce using rule 11 (time_unit -> DAY .)
+
+
+state 41
+
+    (71) event_distributions -> count_distribution event_distributions .
+
+    $end            reduce using rule 71 (event_distributions -> count_distribution event_distributions .)
+
+
+state 42
+
+    (72) event_distributions -> time_distribution event_distributions .
+
+    $end            reduce using rule 72 (event_distributions -> time_distribution event_distributions .)
+
+
+state 43
+
+    (75) count_distribution -> CREATE COUNT . DISTRIBUTION FOR ID LPAREN distribution_list RPAREN
+
+    DISTRIBUTION    shift and go to state 56
+
+
+state 44
+
+    (74) time_distribution -> CREATE TIME . DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+
+    DISTRIBUTION    shift and go to state 57
+
+
+state 45
+
+    (62) rules -> rules causation_rule .
+
+    ID              reduce using rule 62 (rules -> rules causation_rule .)
+    TERMINATE       reduce using rule 62 (rules -> rules causation_rule .)
+    END             reduce using rule 62 (rules -> rules causation_rule .)
+    CREATE          reduce using rule 62 (rules -> rules causation_rule .)
+
+
+state 46
+
+    (63) rules -> rules termination_rule .
+
+    ID              reduce using rule 63 (rules -> rules termination_rule .)
+    TERMINATE       reduce using rule 63 (rules -> rules termination_rule .)
+    END             reduce using rule 63 (rules -> rules termination_rule .)
+    CREATE          reduce using rule 63 (rules -> rules termination_rule .)
+
+
+state 47
+
+    (66) causation_rule -> ID COLON . CAUSE event_list SEMICOLON target_event
+
+    CAUSE           shift and go to state 58
+
+
+state 48
+
+    (69) termination_rule -> TERMINATE ID .
+    (70) termination_rule -> TERMINATE ID . SEMICOLON event_list
+
+    ID              reduce using rule 69 (termination_rule -> TERMINATE ID .)
+    TERMINATE       reduce using rule 69 (termination_rule -> TERMINATE ID .)
+    END             reduce using rule 69 (termination_rule -> TERMINATE ID .)
+    CREATE          reduce using rule 69 (termination_rule -> TERMINATE ID .)
+    SEMICOLON       shift and go to state 59
+
+
+state 49
+
+    (54) start_rule -> ID COLON CAUSE . START SEMICOLON target_event
+
+    START           shift and go to state 60
+
+
+state 50
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN . EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    EVENTTIME       shift and go to state 61
+
+
+state 51
+
+    (12) optional_resource -> RESOURCES TABLES table_resources . VARIABLES variables FUNCTIONS custom_functions
+
+    VARIABLES       shift and go to state 62
+
+
+state 52
+
+    (13) table_resources -> ID . COMMA table_resources
+
+    COMMA           shift and go to state 63
+
+
+state 53
+
+    (14) table_resources -> END . TABLES
+
+    TABLES          shift and go to state 64
+
+
+state 54
+
+    (4) time_range -> START EQ time_val COMMA . END EQ time_val
+
+    END             shift and go to state 65
+
+
+state 55
+
+    (5) time_val -> NUMBER time_unit .
+
+    COMMA           reduce using rule 5 (time_val -> NUMBER time_unit .)
+    RESOURCES       reduce using rule 5 (time_val -> NUMBER time_unit .)
+    AND             reduce using rule 5 (time_val -> NUMBER time_unit .)
+    COUNT           reduce using rule 5 (time_val -> NUMBER time_unit .)
+    ID              reduce using rule 5 (time_val -> NUMBER time_unit .)
+    TERMINATE       reduce using rule 5 (time_val -> NUMBER time_unit .)
+    END             reduce using rule 5 (time_val -> NUMBER time_unit .)
+    CREATE          reduce using rule 5 (time_val -> NUMBER time_unit .)
+
+
+state 56
+
+    (75) count_distribution -> CREATE COUNT DISTRIBUTION . FOR ID LPAREN distribution_list RPAREN
+
+    FOR             shift and go to state 66
+
+
+state 57
+
+    (74) time_distribution -> CREATE TIME DISTRIBUTION . FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+
+    FOR             shift and go to state 67
+
+
+state 58
+
+    (66) causation_rule -> ID COLON CAUSE . event_list SEMICOLON target_event
+    (67) event_list -> . ID COMMA event_list
+    (68) event_list -> . ID
+
+    ID              shift and go to state 68
+
+    event_list                     shift and go to state 69
+
+state 59
+
+    (70) termination_rule -> TERMINATE ID SEMICOLON . event_list
+    (67) event_list -> . ID COMMA event_list
+    (68) event_list -> . ID
+
+    ID              shift and go to state 68
+
+    event_list                     shift and go to state 70
+
+state 60
+
+    (54) start_rule -> ID COLON CAUSE START . SEMICOLON target_event
+
+    SEMICOLON       shift and go to state 71
+
+
+state 61
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME . NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    NUMBER          shift and go to state 72
+
+
+state 62
+
+    (12) optional_resource -> RESOURCES TABLES table_resources VARIABLES . variables FUNCTIONS custom_functions
+    (15) variables -> . value_bound COMMA variables
+    (16) variables -> . END VARIABLES
+    (17) value_bound -> . ID EQ LPAREN values COMMA values RPAREN
+
+    END             shift and go to state 75
+    ID              shift and go to state 76
+
+    variables                      shift and go to state 73
+    value_bound                    shift and go to state 74
+
+state 63
+
+    (13) table_resources -> ID COMMA . table_resources
+    (13) table_resources -> . ID COMMA table_resources
+    (14) table_resources -> . END TABLES
+
+    ID              shift and go to state 52
+    END             shift and go to state 53
+
+    table_resources                shift and go to state 77
+
+state 64
+
+    (14) table_resources -> END TABLES .
+
+    VARIABLES       reduce using rule 14 (table_resources -> END TABLES .)
+
+
+state 65
+
+    (4) time_range -> START EQ time_val COMMA END . EQ time_val
+
+    EQ              shift and go to state 78
+
+
+state 66
+
+    (75) count_distribution -> CREATE COUNT DISTRIBUTION FOR . ID LPAREN distribution_list RPAREN
+
+    ID              shift and go to state 79
+
+
+state 67
+
+    (74) time_distribution -> CREATE TIME DISTRIBUTION FOR . ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+
+    ID              shift and go to state 80
+
+
+state 68
+
+    (67) event_list -> ID . COMMA event_list
+    (68) event_list -> ID .
+
+    COMMA           shift and go to state 81
+    SEMICOLON       reduce using rule 68 (event_list -> ID .)
+    ID              reduce using rule 68 (event_list -> ID .)
+    TERMINATE       reduce using rule 68 (event_list -> ID .)
+    END             reduce using rule 68 (event_list -> ID .)
+    CREATE          reduce using rule 68 (event_list -> ID .)
+    RPAREN          reduce using rule 68 (event_list -> ID .)
+
+
+state 69
+
+    (66) causation_rule -> ID COLON CAUSE event_list . SEMICOLON target_event
+
+    SEMICOLON       shift and go to state 82
+
+
+state 70
+
+    (70) termination_rule -> TERMINATE ID SEMICOLON event_list .
+
+    ID              reduce using rule 70 (termination_rule -> TERMINATE ID SEMICOLON event_list .)
+    TERMINATE       reduce using rule 70 (termination_rule -> TERMINATE ID SEMICOLON event_list .)
+    END             reduce using rule 70 (termination_rule -> TERMINATE ID SEMICOLON event_list .)
+    CREATE          reduce using rule 70 (termination_rule -> TERMINATE ID SEMICOLON event_list .)
+
+
+state 71
+
+    (54) start_rule -> ID COLON CAUSE START SEMICOLON . target_event
+    (55) target_event -> . ID time_condition count_condition
+
+    ID              shift and go to state 83
+
+    target_event                   shift and go to state 84
+
+state 72
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER . COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    COMMA           shift and go to state 85
+
+
+state 73
+
+    (12) optional_resource -> RESOURCES TABLES table_resources VARIABLES variables . FUNCTIONS custom_functions
+
+    FUNCTIONS       shift and go to state 86
+
+
+state 74
+
+    (15) variables -> value_bound . COMMA variables
+
+    COMMA           shift and go to state 87
+
+
+state 75
+
+    (16) variables -> END . VARIABLES
+
+    VARIABLES       shift and go to state 88
+
+
+state 76
+
+    (17) value_bound -> ID . EQ LPAREN values COMMA values RPAREN
+
+    EQ              shift and go to state 89
+
+
+state 77
+
+    (13) table_resources -> ID COMMA table_resources .
+
+    VARIABLES       reduce using rule 13 (table_resources -> ID COMMA table_resources .)
+
+
+state 78
+
+    (4) time_range -> START EQ time_val COMMA END EQ . time_val
+    (5) time_val -> . NUMBER time_unit
+    (6) time_val -> . NUMBER
+
+    NUMBER          shift and go to state 34
+
+    time_val                       shift and go to state 90
+
+state 79
+
+    (75) count_distribution -> CREATE COUNT DISTRIBUTION FOR ID . LPAREN distribution_list RPAREN
+
+    LPAREN          shift and go to state 91
+
+
+state 80
+
+    (74) time_distribution -> CREATE TIME DISTRIBUTION FOR ID . LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+
+    LPAREN          shift and go to state 92
+
+
+state 81
+
+    (67) event_list -> ID COMMA . event_list
+    (67) event_list -> . ID COMMA event_list
+    (68) event_list -> . ID
+
+    ID              shift and go to state 68
+
+    event_list                     shift and go to state 93
+
+state 82
+
+    (66) causation_rule -> ID COLON CAUSE event_list SEMICOLON . target_event
+    (55) target_event -> . ID time_condition count_condition
+
+    ID              shift and go to state 83
+
+    target_event                   shift and go to state 94
+
+state 83
+
+    (55) target_event -> ID . time_condition count_condition
+    (56) time_condition -> . TIME BETWEEN time_val AND time_val
+    (57) time_condition -> . TIME EXACTLY time_val
+    (58) time_condition -> . empty
+    (80) empty -> .
+
+    TIME            shift and go to state 96
+    COUNT           reduce using rule 80 (empty -> .)
+    ID              reduce using rule 80 (empty -> .)
+    TERMINATE       reduce using rule 80 (empty -> .)
+    END             reduce using rule 80 (empty -> .)
+    CREATE          reduce using rule 80 (empty -> .)
+
+    time_condition                 shift and go to state 95
+    empty                          shift and go to state 97
+
+state 84
+
+    (54) start_rule -> ID COLON CAUSE START SEMICOLON target_event .
+
+    ID              reduce using rule 54 (start_rule -> ID COLON CAUSE START SEMICOLON target_event .)
+    TERMINATE       reduce using rule 54 (start_rule -> ID COLON CAUSE START SEMICOLON target_event .)
+
+
+state 85
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA . INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    INGESTTIME      shift and go to state 98
+
+
+state 86
+
+    (12) optional_resource -> RESOURCES TABLES table_resources VARIABLES variables FUNCTIONS . custom_functions
+    (22) custom_functions -> . ID COMMA custom_functions
+    (23) custom_functions -> . END FUNCTIONS
+
+    ID              shift and go to state 100
+    END             shift and go to state 101
+
+    custom_functions               shift and go to state 99
+
+state 87
+
+    (15) variables -> value_bound COMMA . variables
+    (15) variables -> . value_bound COMMA variables
+    (16) variables -> . END VARIABLES
+    (17) value_bound -> . ID EQ LPAREN values COMMA values RPAREN
+
+    END             shift and go to state 75
+    ID              shift and go to state 76
+
+    value_bound                    shift and go to state 74
+    variables                      shift and go to state 102
+
+state 88
+
+    (16) variables -> END VARIABLES .
+
+    FUNCTIONS       reduce using rule 16 (variables -> END VARIABLES .)
+
+
+state 89
+
+    (17) value_bound -> ID EQ . LPAREN values COMMA values RPAREN
+
+    LPAREN          shift and go to state 103
+
+
+state 90
+
+    (4) time_range -> START EQ time_val COMMA END EQ time_val .
+
+    RESOURCES       reduce using rule 4 (time_range -> START EQ time_val COMMA END EQ time_val .)
+
+
+state 91
+
+    (75) count_distribution -> CREATE COUNT DISTRIBUTION FOR ID LPAREN . distribution_list RPAREN
+    (76) distribution_list -> . distribution COMMA distribution_list
+    (77) distribution_list -> . distribution
+    (78) distribution -> . distribution_range COLON NUMBER
+    (79) distribution_range -> . LSPAREN NUMBER COMMA NUMBER RPAREN
+
+    LSPAREN         shift and go to state 107
+
+    distribution_list              shift and go to state 104
+    distribution                   shift and go to state 105
+    distribution_range             shift and go to state 106
+
+state 92
+
+    (74) time_distribution -> CREATE TIME DISTRIBUTION FOR ID LPAREN . BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+
+    BASE_TIME_GRANULARITY shift and go to state 108
+
+
+state 93
+
+    (67) event_list -> ID COMMA event_list .
+
+    SEMICOLON       reduce using rule 67 (event_list -> ID COMMA event_list .)
+    ID              reduce using rule 67 (event_list -> ID COMMA event_list .)
+    TERMINATE       reduce using rule 67 (event_list -> ID COMMA event_list .)
+    END             reduce using rule 67 (event_list -> ID COMMA event_list .)
+    CREATE          reduce using rule 67 (event_list -> ID COMMA event_list .)
+    RPAREN          reduce using rule 67 (event_list -> ID COMMA event_list .)
+
+
+state 94
+
+    (66) causation_rule -> ID COLON CAUSE event_list SEMICOLON target_event .
+
+    ID              reduce using rule 66 (causation_rule -> ID COLON CAUSE event_list SEMICOLON target_event .)
+    TERMINATE       reduce using rule 66 (causation_rule -> ID COLON CAUSE event_list SEMICOLON target_event .)
+    END             reduce using rule 66 (causation_rule -> ID COLON CAUSE event_list SEMICOLON target_event .)
+    CREATE          reduce using rule 66 (causation_rule -> ID COLON CAUSE event_list SEMICOLON target_event .)
+
+
+state 95
+
+    (55) target_event -> ID time_condition . count_condition
+    (59) count_condition -> . COUNT BETWEEN time_val AND time_val
+    (60) count_condition -> . COUNT EXACTLY time_val
+    (61) count_condition -> . empty
+    (80) empty -> .
+
+    COUNT           shift and go to state 110
+    ID              reduce using rule 80 (empty -> .)
+    TERMINATE       reduce using rule 80 (empty -> .)
+    END             reduce using rule 80 (empty -> .)
+    CREATE          reduce using rule 80 (empty -> .)
+
+    count_condition                shift and go to state 109
+    empty                          shift and go to state 111
+
+state 96
+
+    (56) time_condition -> TIME . BETWEEN time_val AND time_val
+    (57) time_condition -> TIME . EXACTLY time_val
+
+    BETWEEN         shift and go to state 112
+    EXACTLY         shift and go to state 113
+
+
+state 97
+
+    (58) time_condition -> empty .
+
+    COUNT           reduce using rule 58 (time_condition -> empty .)
+    ID              reduce using rule 58 (time_condition -> empty .)
+    TERMINATE       reduce using rule 58 (time_condition -> empty .)
+    END             reduce using rule 58 (time_condition -> empty .)
+    CREATE          reduce using rule 58 (time_condition -> empty .)
+
+
+state 98
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME . LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    LPAREN          shift and go to state 114
+
+
+state 99
+
+    (12) optional_resource -> RESOURCES TABLES table_resources VARIABLES variables FUNCTIONS custom_functions .
+
+    CREATE          reduce using rule 12 (optional_resource -> RESOURCES TABLES table_resources VARIABLES variables FUNCTIONS custom_functions .)
+
+
+state 100
+
+    (22) custom_functions -> ID . COMMA custom_functions
+
+    COMMA           shift and go to state 115
+
+
+state 101
+
+    (23) custom_functions -> END . FUNCTIONS
+
+    FUNCTIONS       shift and go to state 116
+
+
+state 102
+
+    (15) variables -> value_bound COMMA variables .
+
+    FUNCTIONS       reduce using rule 15 (variables -> value_bound COMMA variables .)
+
+
+state 103
+
+    (17) value_bound -> ID EQ LPAREN . values COMMA values RPAREN
+    (18) values -> . NUMBER
+    (19) values -> . LSPAREN numbers RSPAREN
+
+    NUMBER          shift and go to state 118
+    LSPAREN         shift and go to state 119
+
+    values                         shift and go to state 117
+
+state 104
+
+    (75) count_distribution -> CREATE COUNT DISTRIBUTION FOR ID LPAREN distribution_list . RPAREN
+
+    RPAREN          shift and go to state 120
+
+
+state 105
+
+    (76) distribution_list -> distribution . COMMA distribution_list
+    (77) distribution_list -> distribution .
+
+    COMMA           shift and go to state 121
+    RPAREN          reduce using rule 77 (distribution_list -> distribution .)
+
+
+state 106
+
+    (78) distribution -> distribution_range . COLON NUMBER
+
+    COLON           shift and go to state 122
+
+
+state 107
+
+    (79) distribution_range -> LSPAREN . NUMBER COMMA NUMBER RPAREN
+
+    NUMBER          shift and go to state 123
+
+
+state 108
+
+    (74) time_distribution -> CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY . EQ time_val COMMA distribution_list RPAREN
+
+    EQ              shift and go to state 124
+
+
+state 109
+
+    (55) target_event -> ID time_condition count_condition .
+
+    ID              reduce using rule 55 (target_event -> ID time_condition count_condition .)
+    TERMINATE       reduce using rule 55 (target_event -> ID time_condition count_condition .)
+    END             reduce using rule 55 (target_event -> ID time_condition count_condition .)
+    CREATE          reduce using rule 55 (target_event -> ID time_condition count_condition .)
+
+
+state 110
+
+    (59) count_condition -> COUNT . BETWEEN time_val AND time_val
+    (60) count_condition -> COUNT . EXACTLY time_val
+
+    BETWEEN         shift and go to state 125
+    EXACTLY         shift and go to state 126
+
+
+state 111
+
+    (61) count_condition -> empty .
+
+    ID              reduce using rule 61 (count_condition -> empty .)
+    TERMINATE       reduce using rule 61 (count_condition -> empty .)
+    END             reduce using rule 61 (count_condition -> empty .)
+    CREATE          reduce using rule 61 (count_condition -> empty .)
+
+
+state 112
+
+    (56) time_condition -> TIME BETWEEN . time_val AND time_val
+    (5) time_val -> . NUMBER time_unit
+    (6) time_val -> . NUMBER
+
+    NUMBER          shift and go to state 34
+
+    time_val                       shift and go to state 127
+
+state 113
+
+    (57) time_condition -> TIME EXACTLY . time_val
+    (5) time_val -> . NUMBER time_unit
+    (6) time_val -> . NUMBER
+
+    NUMBER          shift and go to state 34
+
+    time_val                       shift and go to state 128
+
+state 114
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN . NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    NUMBER          shift and go to state 129
+
+
+state 115
+
+    (22) custom_functions -> ID COMMA . custom_functions
+    (22) custom_functions -> . ID COMMA custom_functions
+    (23) custom_functions -> . END FUNCTIONS
+
+    ID              shift and go to state 100
+    END             shift and go to state 101
+
+    custom_functions               shift and go to state 130
+
+state 116
+
+    (23) custom_functions -> END FUNCTIONS .
+
+    CREATE          reduce using rule 23 (custom_functions -> END FUNCTIONS .)
+
+
+state 117
+
+    (17) value_bound -> ID EQ LPAREN values . COMMA values RPAREN
+
+    COMMA           shift and go to state 131
+
+
+state 118
+
+    (18) values -> NUMBER .
+
+    COMMA           reduce using rule 18 (values -> NUMBER .)
+    RPAREN          reduce using rule 18 (values -> NUMBER .)
+
+
+state 119
+
+    (19) values -> LSPAREN . numbers RSPAREN
+    (20) numbers -> . numbers COMMA NUMBER
+    (21) numbers -> . NUMBER
+
+    NUMBER          shift and go to state 133
+
+    numbers                        shift and go to state 132
+
+state 120
+
+    (75) count_distribution -> CREATE COUNT DISTRIBUTION FOR ID LPAREN distribution_list RPAREN .
+
+    END             reduce using rule 75 (count_distribution -> CREATE COUNT DISTRIBUTION FOR ID LPAREN distribution_list RPAREN .)
+    CREATE          reduce using rule 75 (count_distribution -> CREATE COUNT DISTRIBUTION FOR ID LPAREN distribution_list RPAREN .)
+
+
+state 121
+
+    (76) distribution_list -> distribution COMMA . distribution_list
+    (76) distribution_list -> . distribution COMMA distribution_list
+    (77) distribution_list -> . distribution
+    (78) distribution -> . distribution_range COLON NUMBER
+    (79) distribution_range -> . LSPAREN NUMBER COMMA NUMBER RPAREN
+
+    LSPAREN         shift and go to state 107
+
+    distribution                   shift and go to state 105
+    distribution_list              shift and go to state 134
+    distribution_range             shift and go to state 106
+
+state 122
+
+    (78) distribution -> distribution_range COLON . NUMBER
+
+    NUMBER          shift and go to state 135
+
+
+state 123
+
+    (79) distribution_range -> LSPAREN NUMBER . COMMA NUMBER RPAREN
+
+    COMMA           shift and go to state 136
+
+
+state 124
+
+    (74) time_distribution -> CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ . time_val COMMA distribution_list RPAREN
+    (5) time_val -> . NUMBER time_unit
+    (6) time_val -> . NUMBER
+
+    NUMBER          shift and go to state 34
+
+    time_val                       shift and go to state 137
+
+state 125
+
+    (59) count_condition -> COUNT BETWEEN . time_val AND time_val
+    (5) time_val -> . NUMBER time_unit
+    (6) time_val -> . NUMBER
+
+    NUMBER          shift and go to state 34
+
+    time_val                       shift and go to state 138
+
+state 126
+
+    (60) count_condition -> COUNT EXACTLY . time_val
+    (5) time_val -> . NUMBER time_unit
+    (6) time_val -> . NUMBER
+
+    NUMBER          shift and go to state 34
+
+    time_val                       shift and go to state 139
+
+state 127
+
+    (56) time_condition -> TIME BETWEEN time_val . AND time_val
+
+    AND             shift and go to state 140
+
+
+state 128
+
+    (57) time_condition -> TIME EXACTLY time_val .
+
+    COUNT           reduce using rule 57 (time_condition -> TIME EXACTLY time_val .)
+    ID              reduce using rule 57 (time_condition -> TIME EXACTLY time_val .)
+    TERMINATE       reduce using rule 57 (time_condition -> TIME EXACTLY time_val .)
+    END             reduce using rule 57 (time_condition -> TIME EXACTLY time_val .)
+    CREATE          reduce using rule 57 (time_condition -> TIME EXACTLY time_val .)
+
+
+state 129
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER . RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    RPAREN          shift and go to state 141
+
+
+state 130
+
+    (22) custom_functions -> ID COMMA custom_functions .
+
+    CREATE          reduce using rule 22 (custom_functions -> ID COMMA custom_functions .)
+
+
+state 131
+
+    (17) value_bound -> ID EQ LPAREN values COMMA . values RPAREN
+    (18) values -> . NUMBER
+    (19) values -> . LSPAREN numbers RSPAREN
+
+    NUMBER          shift and go to state 118
+    LSPAREN         shift and go to state 119
+
+    values                         shift and go to state 142
+
+state 132
+
+    (19) values -> LSPAREN numbers . RSPAREN
+    (20) numbers -> numbers . COMMA NUMBER
+
+    RSPAREN         shift and go to state 143
+    COMMA           shift and go to state 144
+
+
+state 133
+
+    (21) numbers -> NUMBER .
+
+    RSPAREN         reduce using rule 21 (numbers -> NUMBER .)
+    COMMA           reduce using rule 21 (numbers -> NUMBER .)
+
+
+state 134
+
+    (76) distribution_list -> distribution COMMA distribution_list .
+
+    RPAREN          reduce using rule 76 (distribution_list -> distribution COMMA distribution_list .)
+
+
+state 135
+
+    (78) distribution -> distribution_range COLON NUMBER .
+
+    COMMA           reduce using rule 78 (distribution -> distribution_range COLON NUMBER .)
+    RPAREN          reduce using rule 78 (distribution -> distribution_range COLON NUMBER .)
+
+
+state 136
+
+    (79) distribution_range -> LSPAREN NUMBER COMMA . NUMBER RPAREN
+
+    NUMBER          shift and go to state 145
+
+
+state 137
+
+    (74) time_distribution -> CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val . COMMA distribution_list RPAREN
+
+    COMMA           shift and go to state 146
+
+
+state 138
+
+    (59) count_condition -> COUNT BETWEEN time_val . AND time_val
+
+    AND             shift and go to state 147
+
+
+state 139
+
+    (60) count_condition -> COUNT EXACTLY time_val .
+
+    ID              reduce using rule 60 (count_condition -> COUNT EXACTLY time_val .)
+    TERMINATE       reduce using rule 60 (count_condition -> COUNT EXACTLY time_val .)
+    END             reduce using rule 60 (count_condition -> COUNT EXACTLY time_val .)
+    CREATE          reduce using rule 60 (count_condition -> COUNT EXACTLY time_val .)
+
+
+state 140
+
+    (56) time_condition -> TIME BETWEEN time_val AND . time_val
+    (5) time_val -> . NUMBER time_unit
+    (6) time_val -> . NUMBER
+
+    NUMBER          shift and go to state 34
+
+    time_val                       shift and go to state 148
+
+state 141
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN . MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    MAXDELAY        shift and go to state 149
+
+
+state 142
+
+    (17) value_bound -> ID EQ LPAREN values COMMA values . RPAREN
+
+    RPAREN          shift and go to state 150
+
+
+state 143
+
+    (19) values -> LSPAREN numbers RSPAREN .
+
+    COMMA           reduce using rule 19 (values -> LSPAREN numbers RSPAREN .)
+    RPAREN          reduce using rule 19 (values -> LSPAREN numbers RSPAREN .)
+
+
+state 144
+
+    (20) numbers -> numbers COMMA . NUMBER
+
+    NUMBER          shift and go to state 151
+
+
+state 145
+
+    (79) distribution_range -> LSPAREN NUMBER COMMA NUMBER . RPAREN
+
+    RPAREN          shift and go to state 152
+
+
+state 146
+
+    (74) time_distribution -> CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA . distribution_list RPAREN
+    (76) distribution_list -> . distribution COMMA distribution_list
+    (77) distribution_list -> . distribution
+    (78) distribution -> . distribution_range COLON NUMBER
+    (79) distribution_range -> . LSPAREN NUMBER COMMA NUMBER RPAREN
+
+    LSPAREN         shift and go to state 107
+
+    distribution_list              shift and go to state 153
+    distribution                   shift and go to state 105
+    distribution_range             shift and go to state 106
+
+state 147
+
+    (59) count_condition -> COUNT BETWEEN time_val AND . time_val
+    (5) time_val -> . NUMBER time_unit
+    (6) time_val -> . NUMBER
+
+    NUMBER          shift and go to state 34
+
+    time_val                       shift and go to state 154
+
+state 148
+
+    (56) time_condition -> TIME BETWEEN time_val AND time_val .
+
+    COUNT           reduce using rule 56 (time_condition -> TIME BETWEEN time_val AND time_val .)
+    ID              reduce using rule 56 (time_condition -> TIME BETWEEN time_val AND time_val .)
+    TERMINATE       reduce using rule 56 (time_condition -> TIME BETWEEN time_val AND time_val .)
+    END             reduce using rule 56 (time_condition -> TIME BETWEEN time_val AND time_val .)
+    CREATE          reduce using rule 56 (time_condition -> TIME BETWEEN time_val AND time_val .)
+
+
+state 149
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY . LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    LPAREN          shift and go to state 155
+
+
+state 150
+
+    (17) value_bound -> ID EQ LPAREN values COMMA values RPAREN .
+
+    COMMA           reduce using rule 17 (value_bound -> ID EQ LPAREN values COMMA values RPAREN .)
+
+
+state 151
+
+    (20) numbers -> numbers COMMA NUMBER .
+
+    RSPAREN         reduce using rule 20 (numbers -> numbers COMMA NUMBER .)
+    COMMA           reduce using rule 20 (numbers -> numbers COMMA NUMBER .)
+
+
+state 152
+
+    (79) distribution_range -> LSPAREN NUMBER COMMA NUMBER RPAREN .
+
+    COLON           reduce using rule 79 (distribution_range -> LSPAREN NUMBER COMMA NUMBER RPAREN .)
+
+
+state 153
+
+    (74) time_distribution -> CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list . RPAREN
+
+    RPAREN          shift and go to state 156
+
+
+state 154
+
+    (59) count_condition -> COUNT BETWEEN time_val AND time_val .
+
+    ID              reduce using rule 59 (count_condition -> COUNT BETWEEN time_val AND time_val .)
+    TERMINATE       reduce using rule 59 (count_condition -> COUNT BETWEEN time_val AND time_val .)
+    END             reduce using rule 59 (count_condition -> COUNT BETWEEN time_val AND time_val .)
+    CREATE          reduce using rule 59 (count_condition -> COUNT BETWEEN time_val AND time_val .)
+
+
+state 155
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN . NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    NUMBER          shift and go to state 157
+
+
+state 156
+
+    (74) time_distribution -> CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN .
+
+    END             reduce using rule 74 (time_distribution -> CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN .)
+    CREATE          reduce using rule 74 (time_distribution -> CREATE TIME DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN .)
+
+
+state 157
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER . RPAREN COMMA attributes COMMA functional_dependencies RPAREN
+
+    RPAREN          shift and go to state 158
+
+
+state 158
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN . COMMA attributes COMMA functional_dependencies RPAREN
+
+    COMMA           shift and go to state 159
+
+
+state 159
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA . attributes COMMA functional_dependencies RPAREN
+    (33) attributes -> . attributes COMMA attribute
+    (34) attributes -> . attribute
+    (35) attribute -> . ID COLON attribute_type
+
+    ID              shift and go to state 160
+
+    attributes                     shift and go to state 161
+    attribute                      shift and go to state 162
+
+state 160
+
+    (35) attribute -> ID . COLON attribute_type
+
+    COLON           shift and go to state 163
+
+
+state 161
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes . COMMA functional_dependencies RPAREN
+    (33) attributes -> attributes . COMMA attribute
+
+    COMMA           shift and go to state 164
+
+
+state 162
+
+    (34) attributes -> attribute .
+
+    COMMA           reduce using rule 34 (attributes -> attribute .)
+
+
+state 163
+
+    (35) attribute -> ID COLON . attribute_type
+    (36) attribute_type -> . global_restricted
+    (37) attribute_type -> . table_reference
+    (38) attribute_type -> . event_reference
+    (39) attribute_type -> . raw_value
+    (40) global_restricted -> . IN ID
+    (41) table_reference -> . ID LPAREN table_values RPAREN FOREIGNKEY
+    (42) table_reference -> . ID LPAREN table_values RPAREN
+    (45) event_reference -> . INHERIT ID LPAREN event_values RPAREN FOREIGNKEY
+    (46) event_reference -> . INHERIT ID LPAREN event_values RPAREN
+    (49) raw_value -> . INTEGER
+    (50) raw_value -> . STRING
+    (51) raw_value -> . FLOAT
+    (52) raw_value -> . CHAR LPAREN NUMBER RPAREN
+
+    IN              shift and go to state 171
+    ID              shift and go to state 165
+    INHERIT         shift and go to state 172
+    INTEGER         shift and go to state 173
+    STRING          shift and go to state 174
+    FLOAT           shift and go to state 175
+    CHAR            shift and go to state 176
+
+    attribute_type                 shift and go to state 166
+    global_restricted              shift and go to state 167
+    table_reference                shift and go to state 168
+    event_reference                shift and go to state 169
+    raw_value                      shift and go to state 170
+
+state 164
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA . functional_dependencies RPAREN
+    (33) attributes -> attributes COMMA . attribute
+    (27) functional_dependencies -> . source_event_list FA target_event_list
+    (35) attribute -> . ID COLON attribute_type
+    (28) source_event_list -> . LPAREN event_list RPAREN
+    (29) source_event_list -> . ID
+
+    ID              shift and go to state 177
+    LPAREN          shift and go to state 178
+
+    functional_dependencies        shift and go to state 179
+    attribute                      shift and go to state 180
+    source_event_list              shift and go to state 181
+
+state 165
+
+    (41) table_reference -> ID . LPAREN table_values RPAREN FOREIGNKEY
+    (42) table_reference -> ID . LPAREN table_values RPAREN
+
+    LPAREN          shift and go to state 182
+
+
+state 166
+
+    (35) attribute -> ID COLON attribute_type .
+
+    COMMA           reduce using rule 35 (attribute -> ID COLON attribute_type .)
+
+
+state 167
+
+    (36) attribute_type -> global_restricted .
+
+    COMMA           reduce using rule 36 (attribute_type -> global_restricted .)
+
+
+state 168
+
+    (37) attribute_type -> table_reference .
+
+    COMMA           reduce using rule 37 (attribute_type -> table_reference .)
+
+
+state 169
+
+    (38) attribute_type -> event_reference .
+
+    COMMA           reduce using rule 38 (attribute_type -> event_reference .)
+
+
+state 170
+
+    (39) attribute_type -> raw_value .
+
+    COMMA           reduce using rule 39 (attribute_type -> raw_value .)
+
+
+state 171
+
+    (40) global_restricted -> IN . ID
+
+    ID              shift and go to state 183
+
+
+state 172
+
+    (45) event_reference -> INHERIT . ID LPAREN event_values RPAREN FOREIGNKEY
+    (46) event_reference -> INHERIT . ID LPAREN event_values RPAREN
+
+    ID              shift and go to state 184
+
+
+state 173
+
+    (49) raw_value -> INTEGER .
+
+    COMMA           reduce using rule 49 (raw_value -> INTEGER .)
+
+
+state 174
+
+    (50) raw_value -> STRING .
+
+    COMMA           reduce using rule 50 (raw_value -> STRING .)
+
+
+state 175
+
+    (51) raw_value -> FLOAT .
+
+    COMMA           reduce using rule 51 (raw_value -> FLOAT .)
+
+
+state 176
+
+    (52) raw_value -> CHAR . LPAREN NUMBER RPAREN
+
+    LPAREN          shift and go to state 185
+
+
+state 177
+
+    (35) attribute -> ID . COLON attribute_type
+    (29) source_event_list -> ID .
+
+    COLON           shift and go to state 163
+    FA              reduce using rule 29 (source_event_list -> ID .)
+
+
+state 178
+
+    (28) source_event_list -> LPAREN . event_list RPAREN
+    (67) event_list -> . ID COMMA event_list
+    (68) event_list -> . ID
+
+    ID              shift and go to state 68
+
+    event_list                     shift and go to state 186
+
+state 179
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies . RPAREN
+
+    RPAREN          shift and go to state 187
+
+
+state 180
+
+    (33) attributes -> attributes COMMA attribute .
+
+    COMMA           reduce using rule 33 (attributes -> attributes COMMA attribute .)
+
+
+state 181
+
+    (27) functional_dependencies -> source_event_list . FA target_event_list
+
+    FA              shift and go to state 188
+
+
+state 182
+
+    (41) table_reference -> ID LPAREN . table_values RPAREN FOREIGNKEY
+    (42) table_reference -> ID LPAREN . table_values RPAREN
+    (43) table_values -> . table_values COMMA ID
+    (44) table_values -> . ID
+
+    ID              shift and go to state 189
+
+    table_values                   shift and go to state 190
+
+state 183
+
+    (40) global_restricted -> IN ID .
+
+    COMMA           reduce using rule 40 (global_restricted -> IN ID .)
+
+
+state 184
+
+    (45) event_reference -> INHERIT ID . LPAREN event_values RPAREN FOREIGNKEY
+    (46) event_reference -> INHERIT ID . LPAREN event_values RPAREN
+
+    LPAREN          shift and go to state 191
+
+
+state 185
+
+    (52) raw_value -> CHAR LPAREN . NUMBER RPAREN
+
+    NUMBER          shift and go to state 192
+
+
+state 186
+
+    (28) source_event_list -> LPAREN event_list . RPAREN
+
+    RPAREN          shift and go to state 193
+
+
+state 187
+
+    (26) event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN .
+
+    CREATE          reduce using rule 26 (event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN .)
+    ID              reduce using rule 26 (event_type_definition -> CREATE EVENTTYPE ID LPAREN EVENTTIME NUMBER COMMA INGESTTIME LPAREN NUMBER RPAREN MAXDELAY LPAREN NUMBER RPAREN COMMA attributes COMMA functional_dependencies RPAREN .)
+
+
+state 188
+
+    (27) functional_dependencies -> source_event_list FA . target_event_list
+    (30) target_event_list -> . LPAREN event_list RPAREN
+    (31) target_event_list -> . ID
+    (32) target_event_list -> . ALL
+
+    LPAREN          shift and go to state 195
+    ID              shift and go to state 196
+    ALL             shift and go to state 197
+
+    target_event_list              shift and go to state 194
+
+state 189
+
+    (44) table_values -> ID .
+
+    RPAREN          reduce using rule 44 (table_values -> ID .)
+    COMMA           reduce using rule 44 (table_values -> ID .)
+
+
+state 190
+
+    (41) table_reference -> ID LPAREN table_values . RPAREN FOREIGNKEY
+    (42) table_reference -> ID LPAREN table_values . RPAREN
+    (43) table_values -> table_values . COMMA ID
+
+    RPAREN          shift and go to state 198
+    COMMA           shift and go to state 199
+
+
+state 191
+
+    (45) event_reference -> INHERIT ID LPAREN . event_values RPAREN FOREIGNKEY
+    (46) event_reference -> INHERIT ID LPAREN . event_values RPAREN
+    (47) event_values -> . event_values COMMA ID
+    (48) event_values -> . ID
+
+    ID              shift and go to state 200
+
+    event_values                   shift and go to state 201
+
+state 192
+
+    (52) raw_value -> CHAR LPAREN NUMBER . RPAREN
+
+    RPAREN          shift and go to state 202
+
+
+state 193
+
+    (28) source_event_list -> LPAREN event_list RPAREN .
+
+    FA              reduce using rule 28 (source_event_list -> LPAREN event_list RPAREN .)
+
+
+state 194
+
+    (27) functional_dependencies -> source_event_list FA target_event_list .
+
+    RPAREN          reduce using rule 27 (functional_dependencies -> source_event_list FA target_event_list .)
+
+
+state 195
+
+    (30) target_event_list -> LPAREN . event_list RPAREN
+    (67) event_list -> . ID COMMA event_list
+    (68) event_list -> . ID
+
+    ID              shift and go to state 68
+
+    event_list                     shift and go to state 203
+
+state 196
+
+    (31) target_event_list -> ID .
+
+    RPAREN          reduce using rule 31 (target_event_list -> ID .)
+
+
+state 197
+
+    (32) target_event_list -> ALL .
+
+    RPAREN          reduce using rule 32 (target_event_list -> ALL .)
+
+
+state 198
+
+    (41) table_reference -> ID LPAREN table_values RPAREN . FOREIGNKEY
+    (42) table_reference -> ID LPAREN table_values RPAREN .
+
+    FOREIGNKEY      shift and go to state 204
+    COMMA           reduce using rule 42 (table_reference -> ID LPAREN table_values RPAREN .)
+
+
+state 199
+
+    (43) table_values -> table_values COMMA . ID
+
+    ID              shift and go to state 205
+
+
+state 200
+
+    (48) event_values -> ID .
+
+    RPAREN          reduce using rule 48 (event_values -> ID .)
+    COMMA           reduce using rule 48 (event_values -> ID .)
+
+
+state 201
+
+    (45) event_reference -> INHERIT ID LPAREN event_values . RPAREN FOREIGNKEY
+    (46) event_reference -> INHERIT ID LPAREN event_values . RPAREN
+    (47) event_values -> event_values . COMMA ID
+
+    RPAREN          shift and go to state 206
+    COMMA           shift and go to state 207
+
+
+state 202
+
+    (52) raw_value -> CHAR LPAREN NUMBER RPAREN .
+
+    COMMA           reduce using rule 52 (raw_value -> CHAR LPAREN NUMBER RPAREN .)
+
+
+state 203
+
+    (30) target_event_list -> LPAREN event_list . RPAREN
+
+    RPAREN          shift and go to state 208
+
+
+state 204
+
+    (41) table_reference -> ID LPAREN table_values RPAREN FOREIGNKEY .
+
+    COMMA           reduce using rule 41 (table_reference -> ID LPAREN table_values RPAREN FOREIGNKEY .)
+
+
+state 205
+
+    (43) table_values -> table_values COMMA ID .
+
+    RPAREN          reduce using rule 43 (table_values -> table_values COMMA ID .)
+    COMMA           reduce using rule 43 (table_values -> table_values COMMA ID .)
+
+
+state 206
+
+    (45) event_reference -> INHERIT ID LPAREN event_values RPAREN . FOREIGNKEY
+    (46) event_reference -> INHERIT ID LPAREN event_values RPAREN .
+
+    FOREIGNKEY      shift and go to state 209
+    COMMA           reduce using rule 46 (event_reference -> INHERIT ID LPAREN event_values RPAREN .)
+
+
+state 207
+
+    (47) event_values -> event_values COMMA . ID
+
+    ID              shift and go to state 210
+
+
+state 208
+
+    (30) target_event_list -> LPAREN event_list RPAREN .
+
+    RPAREN          reduce using rule 30 (target_event_list -> LPAREN event_list RPAREN .)
+
+
+state 209
+
+    (45) event_reference -> INHERIT ID LPAREN event_values RPAREN FOREIGNKEY .
+
+    COMMA           reduce using rule 45 (event_reference -> INHERIT ID LPAREN event_values RPAREN FOREIGNKEY .)
+
+
+state 210
+
+    (47) event_values -> event_values COMMA ID .
+
+    RPAREN          reduce using rule 47 (event_values -> event_values COMMA ID .)
+    COMMA           reduce using rule 47 (event_values -> event_values COMMA ID .)
+

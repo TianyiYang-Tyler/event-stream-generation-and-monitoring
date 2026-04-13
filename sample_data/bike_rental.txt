@@ -1,0 +1,80 @@
+BASE_TIME_GRANULARITY = 1 MINUTE
+START = 0,
+END = 12 HOUR
+
+RESOURCES 
+TABLES
+Stations, Users, Bikes,
+END TABLES
+VARIABLES
+Map_bounds = ([0,100],[0,100]),
+END VARIABLES
+FUNCTIONS
+city_block_distance,
+END FUNCTIONS
+
+
+CREATE EVENTTYPE RentBike (
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (10),
+	user_id: User(id) FOREIGNKEY,
+	bike_id: Bike(id) FOREIGNKEY,
+	session_id: CHAR(10),
+	station_id: Station(id) FOREIGNKEY,
+station_name: Station(name),
+	location_data: Station(longitude,latitude),
+	credit_card_num:User(credit_card_num) ,
+	is_member: User(is_member) ,
+	session_id -> ALL
+)
+
+CREATE EventType ReturnBike (
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (10),
+	user_id: INHERIT RentBike(user_id),
+	bike_id: INHERIT RentBike(bike_id),
+	station_id: Station(station_id) FOREIGNKEY,
+	session_id: RentBike(session_id) FOREIGNKEY,
+	station_name: Station(station_name),
+	location_data: Station(longitude,latitude),
+	credit_card_num: INHERIT RentBike(credit_card_num),
+	is_member: INHERIT RentBike(is_member),
+	session_id -> ALL
+)
+
+CREATE EventType ReportLocation (
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (10),
+	bike_id: RentBike(bike_id),
+	session_id: INHERIT RentBike(session_id) FOREIGNKEY,
+	user_id: INHERIT RentBike(session_id),
+	is_member: INHERIT RentBike(is_member),
+	location_data: IN Grid_map,
+	session_id -> (bike_id, user_id, is_member)
+)
+
+E0: CAUSE START; RentBike
+E1: CAUSE RentBike; ReturnBike TIME BETWEEN 1min AND 24HOUR
+E2: CAUSE RentBike; ReportLocation TIME EXACTLY 30MINUTE
+E3: CAUSE ReportLocation; ReportLocation TIME EXACTLY 1HOUR
+TERMINATE ReturnBike
+
+CREATE TIME DISTRIBUTION FOR E0 (
+	BASE_TIME_GRANULARITY = 1 HOUR,
+	[0,8) : 500,
+	[8,9) : 800,
+	[9,10) : 740,
+	[10,11) : 740,
+	[11,12) : 800
+)
+
+CREATE TIME DISTRIBUTION FOR E1 (
+	BASE_TIME_GRANULARITY = 1 HOUR,
+	[0,1) : 500,
+	[1,2) : 800,
+	[2,3) : 940,
+	[3,4) : 650,
+	[4,5) : 300
+)
+
+END

@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<data>
+    <eventType name="RentBike">
+        <event_time>1</event_time>
+        <ingest_time>1</ingest_time>
+        <max_delay>10</max_delay>
+        <user_id>User(id) FORIEGN KEY</user_id>
+        <bike_id>Bike(id) FOREIGN KEY</bike_id>
+        <session_id>CHAR(10)</session_id>
+        <station_id>Station(id) FOREIGN KEY</station_id>
+        <station_name>Station(name)</station_name>
+        <location_data>Station(longitude,latitude)</location_data>
+        <credit_card_num>User(credit_card_num)</credit_card_num>
+        <is_member>User(is_member)</is_member>
+        <fd1>
+            <source>session_id</source>
+            <target>ALL</target>
+        </fd1>
+    </eventType>
+    <eventType name="ReturnBike">
+        <event_time>1</event_time>
+        <ingest_time>1</ingest_time>
+        <max_delay>10</max_delay>
+        <user_id>RentBike(user_id)</user_id>
+        <bike_id>RentBike(bike_id)</bike_id>
+        <session_id>RentBike(session_id) FOREIGN KEY</session_id>
+        <station_id>Station(id) FOREIGN KEY</station_id>
+        <station_name>Station(name)</station_name>
+        <location_data>Station(longitude,latitude)</location_data>
+        <credit_card_num>RentBike(credit_card_num)</credit_card_num>
+        <is_member>RentBike(is_member)</is_member>
+        <fd1>
+            <source>session_id</source>
+            <target>ALL</target>
+        </fd1>
+    </eventType>
+    <eventType name="ReportLocation">
+        <event_time>1</event_time>
+        <ingest_time>1</ingest_time>
+        <max_delay>10</max_delay>
+        <user_id>RentBike(user_id)</user_id>
+        <bike_id>RentBike(bike_id)</bike_id>
+        <session_id>RentBike(session_id) FOREIGN KEY</session_id>
+        <location_data>IN Grid_map</location_data>
+        <credit_card_num>RentBike(credit_card_num)</credit_card_num>
+        <is_member>RentBike(is_member)</is_member>
+        <fd1>
+            <source>session_id</source>
+            <target>(bike_id, user_id, is_member)</target>
+        </fd1>
+    </eventType>
+</data>
