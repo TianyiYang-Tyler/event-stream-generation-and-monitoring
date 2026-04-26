@@ -19,7 +19,7 @@ CREATE EVENTTYPE RentBike (
 	INGESTTIME (1) MAXDELAY (10),
 	user_id: User(id) FOREIGNKEY,
 	bike_id: Bike(id) FOREIGNKEY,
-	session_id: CHAR(10),
+	session_id: AUTO_INCREMENT,
 	station_id: Station(id) FOREIGNKEY,
 station_name: Station(name),
 	location_data: Station(longitude,latitude),
@@ -59,7 +59,7 @@ E2: CAUSE RentBike; ReportLocation TIME EXACTLY 30MINUTE
 E3: CAUSE ReportLocation; ReportLocation TIME EXACTLY 1HOUR
 TERMINATE ReturnBike
 
-CREATE TIME DISTRIBUTION FOR E0 (
+CREATE TIMECOUNT DISTRIBUTION FOR E0 (
 	BASE_TIME_GRANULARITY = 1 HOUR,
 	[0,8) : 500,
 	[8,9) : 800,

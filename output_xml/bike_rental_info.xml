@@ -54,11 +54,7 @@
 		</attributes>
 		<attributes>
 			<attribute_name>session_id</attribute_name>
-			<attribute_type>
-				<type>raw_value</type>
-				<value>CHAR</value>
-				<length>10</length>
-			</attribute_type>
+			<attribute_type>AUTO_INCREMENT</attribute_type>
 		</attributes>
 		<attributes>
 			<attribute_name>station_id</attribute_name>
@@ -316,7 +312,7 @@
 		<target_event>ALL</target_event>
 	</process_schema>
 	<event_distributions>
-		<type>time_distribution</type>
+		<type>timecount_distribution</type>
 		<rule_id>E0</rule_id>
 		<base_time_granularity_value>
 			<value>1</value>

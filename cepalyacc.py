@@ -264,6 +264,7 @@ def p_attribute_type(p):
     attribute_type : global_restricted
                    | table_reference
                    | event_reference
+                   | AUTO_INCREMENT
                    | raw_value
     '''
     p[0] = p[1]
@@ -467,6 +468,7 @@ def p_event_distributions(p):
     '''
     event_distributions : count_distribution event_distributions
                         | time_distribution event_distributions
+                        | timecount_distribution event_distributions
                         | END
     '''
     if len(p) == 2:
@@ -497,6 +499,16 @@ def p_count_distribution(p):
         "distribution": p[7]
     }
 
+def p_timecount_distribution(p):
+    '''
+    timecount_distribution : CREATE TIMECOUNT DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+    '''
+    p[0] = {
+        "type": "timecount_distribution",
+        "rule_id": p[5],
+        "base_time_granularity_value": p[9],
+        "distribution": p[11]
+    }
 
 def p_distribution_list(p):
     '''

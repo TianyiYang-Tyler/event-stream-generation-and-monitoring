@@ -56,9 +56,11 @@ reserved = {
 	'EventType'		: 'EVENTTYPE',
 	'min'			: 'MINUTE',
 	'hour'			: 'HOUR',
-	'ms'	: 'MICROSECOND',
-	'sec'		: 'SECOND',
-	'day'			: 'DAY'
+	'ms'			: 'MICROSECOND',
+	'sec'			: 'SECOND',
+	'day'			: 'DAY',
+	'TIMECOUNT'		: 'TIMECOUNT',
+	'AUTO_INCREMENT': 'AUTO_INCREMENT'
 }
 
 tokens = [
