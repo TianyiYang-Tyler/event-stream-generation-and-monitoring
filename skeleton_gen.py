@@ -109,24 +109,27 @@ def extract_event_refs(data):
             attr_name = attr['attribute_name']
             attr_type = attr['attribute_type']
 
-            # 🔥 FIX: normalize to dict
+            # normalize
             if isinstance(attr_type, str):
-                attr_type = {"type": attr_type}
+                attr_type = {'type': attr_type}
 
-            attr_type_name = attr_type.get('type')
+            t = attr_type.get('type')
 
-            # -------- EVENT REFERENCE --------
-            if attr_type_name == 'event_reference':
+            if t == 'event_reference':
                 src_event = attr_type['event_name']
                 src_attr = attr_type['event_values']
 
+                refs.setdefault(event_name, {})
                 refs[event_name].setdefault(src_event, {})
                 refs[event_name][src_event][attr_name] = src_attr
 
-            # -------- AUTO_INCREMENT --------
-            elif attr_type_name in ['global_restricted', 'AUTO_INCREMENT']:
+            elif t == 'AUTO_INCREMENT':
+                refs.setdefault(event_name, {})
                 refs[event_name].setdefault("AUTO_INCREMENT", {})
                 refs[event_name]["AUTO_INCREMENT"][attr_name] = 0
+
+            # ✅ IMPORTANT: DO NOTHING for global_restricted
+            # it should NOT appear in refs at all
 
     return refs
 
@@ -324,6 +327,56 @@ def new_null(state):
     state["null_counter"] += 1
     return val
 
+def build_edges_by_source(edge_objs):
+    edges_by_source = {}
+
+    for rid, edge in edge_objs.items():
+
+        if rid == 'TERMINATE':
+            for e in edge:
+                for src in e['SOURCE']:
+                    edges_by_source.setdefault(src, []).append(e)
+            continue
+
+        for src in edge['SOURCE']:
+            edges_by_source.setdefault(src, []).append(edge)
+
+    return edges_by_source
+
+def sample_time(dist_obj):
+    if not dist_obj:
+        return 0
+
+    if dist_obj['type'] == 'time_distribution':
+        val = sample_from_distribution(dist_obj['distribution'])
+        return int(val * dist_obj['ratio'])
+
+    elif dist_obj['type'] == 'TIME_EXACTLY':
+        return int(dist_obj['value'])
+
+    elif dist_obj['type'] == 'TIME_RANGE':
+        return random.randrange(int(dist_obj['start']), int(dist_obj['end']))
+
+    return 0
+
+
+def sample_count(dist_obj):
+    if not dist_obj:
+        return 1
+
+    if dist_obj['type'] == 'COUNT_EXACTLY':
+        return dist_obj['value']
+
+    elif dist_obj['type'] == 'COUNT_RANGE':
+        return random.randrange(dist_obj['start'], dist_obj['end'])
+
+    return 1
+
+def new_null(state):
+    val = f"NULL{state['null_counter']}"
+    state["null_counter"] += 1
+    return val
+
 def build_attributes(event_type, state, parent_events, event_refs):
 
     attrs = {}
@@ -333,14 +386,20 @@ def build_attributes(event_type, state, parent_events, event_refs):
 
         # -------- EVENT REFERENCE --------
         found = False
+
         for src_event, mapping in event_refs.get(event_type, {}).items():
             if src_event == "AUTO_INCREMENT":
                 continue
 
-            if attr in mapping and src_event in parent_events:
-                attrs[attr] = parent_events[src_event]["attrs"][mapping[attr]]
-                found = True
-                break
+            if attr in mapping:
+
+                # 🔥 USE CANONICAL PARENT INSTEAD OF DIRECT PARENT
+                if src_event in state["canonical_parents"]:
+                    src_evt = state["canonical_parents"][src_event]
+
+                    attrs[attr] = src_evt["attrs"][mapping[attr]]
+                    found = True
+                    break
 
         if found:
             continue
@@ -374,7 +433,8 @@ def generate_instance(edges_by_source, events, event_refs, start_time, auto_coun
         "null_counter": 0,
         "events_schema": events,
         "auto_counters": auto_counters,
-        "instance_values": {}
+        "instance_values": {},
+        "canonical_parents": {}
     }
 
     # 🔥 ADD START EVENT
@@ -456,6 +516,13 @@ def generate_instance(edges_by_source, events, event_refs, start_time, auto_coun
                     state["events"].append(evt)
                     state["event_counts"][tgt] = state["event_counts"].get(tgt, 0) + 1
                     state["event_instances"].setdefault(tgt, []).append(evt)
+
+                    # 🔥 CANONICAL PARENT LOGIC
+                    # If this event type has no canonical parent yet → set it
+                    if tgt not in state["canonical_parents"]:
+                        state["canonical_parents"][tgt] = evt
+
+                    # Otherwise KEEP existing canonical (important for loops!)
 
                     for next_edge in edges_by_source.get(tgt, []):
                         state["active_edges"].add(next_edge.get("rule_id", "TERMINATE"))
@@ -541,14 +608,17 @@ def generate_event_stream_to_xml(
             )
 
             for evt in instance:
-                event_to_xml(root, evt)
+                if evt["type"] not in ("START", "END"):
+                    event_to_xml(root, evt)
 
     tree = ET.ElementTree(root)
     tree.write(output_file, encoding="utf-8", xml_declaration=True)
 
 def write_workflow_log(file, instance_events, enactment_id):
 
-    # sort all events INCLUDING START/END
+    # filter out START
+    instance_events = [e for e in instance_events if e["type"] != "START"]
+
     instance_events.sort(key=lambda x: x["time"])
 
     for idx, evt in enumerate(instance_events, start=1):
@@ -618,7 +688,8 @@ def generate_event_stream_outputs(
 
             # --- XML ---
             for evt in instance:
-                event_to_xml(root, evt)
+                if evt["type"] != "START":
+                    event_to_xml(root, evt)
 
             # --- WORKFLOW LOG ---
             write_workflow_log(log_file, instance, enactment_id)
