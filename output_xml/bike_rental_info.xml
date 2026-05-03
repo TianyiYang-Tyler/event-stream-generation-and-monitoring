@@ -142,10 +142,10 @@
 		<attributes>
 			<attribute_name>session_id</attribute_name>
 			<attribute_type>
-				<type>table_reference</type>
-				<table_name>RentBike</table_name>
-				<table_values>session_id</table_values>
-				<is_foreign_key>true</is_foreign_key>
+				<type>event_reference</type>
+				<event_name>RentBike</event_name>
+				<event_values>session_id</event_values>
+				<is_foreign_key>false</is_foreign_key>
 			</attribute_type>
 		</attributes>
 		<attributes>
@@ -218,7 +218,7 @@
 			<attribute_type>
 				<type>event_reference</type>
 				<event_name>RentBike</event_name>
-				<event_values>session_id</event_values>
+				<event_values>user_id</event_values>
 				<is_foreign_key>true</is_foreign_key>
 			</attribute_type>
 		</attributes>

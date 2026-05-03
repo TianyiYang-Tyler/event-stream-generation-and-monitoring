@@ -1,0 +1,219 @@
+<?xml version='1.0' encoding='utf-8'?>
+<EventStream>
+    <Event>
+        <Type>START</Type>
+        <Time>100</Time>
+        <SourceRule>START</SourceRule>
+        <Attributes />
+    </Event>
+    <Event>
+        <Type>RentBike</Type>
+        <Time>101</Time>
+        <SourceRule>E0</SourceRule>
+        <Attributes>
+            <Attribute name="user_id">1030</Attribute>
+            <Attribute name="bike_id">2021</Attribute>
+            <Attribute name="session_id">0</Attribute>
+            <Attribute name="station_id">21</Attribute>
+            <Attribute name="station_name">Franklin St &amp; W Broadway</Attribute>
+            <Attribute name="location_data">(-74.006667, 40.719116)</Attribute>
+            <Attribute name="credit_card_num">4111111111111140</Attribute>
+            <Attribute name="is_member">0</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>ReportLocation</Type>
+        <Time>120</Time>
+        <SourceRule>E2</SourceRule>
+        <Attributes>
+            <Attribute name="bike_id">2021</Attribute>
+            <Attribute name="session_id">0</Attribute>
+            <Attribute name="user_id">1030</Attribute>
+            <Attribute name="is_member">0</Attribute>
+            <Attribute name="location_data">NULL</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>ReturnBike</Type>
+        <Time>200</Time>
+        <SourceRule>E1</SourceRule>
+        <Attributes>
+            <Attribute name="user_id">1030</Attribute>
+            <Attribute name="bike_id">2021</Attribute>
+            <Attribute name="station_id">NULL8</Attribute>
+            <Attribute name="session_id">0</Attribute>
+            <Attribute name="station_name">NULL10</Attribute>
+            <Attribute name="location_data">NULL11</Attribute>
+            <Attribute name="credit_card_num">4111111111111140</Attribute>
+            <Attribute name="is_member">0</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>END</Type>
+        <Time>201</Time>
+        <SourceRule>TERMINATE</SourceRule>
+        <Attributes />
+    </Event>
+    <Event>
+        <Type>START</Type>
+        <Time>300</Time>
+        <SourceRule>START</SourceRule>
+        <Attributes />
+    </Event>
+    <Event>
+        <Type>RentBike</Type>
+        <Time>301</Time>
+        <SourceRule>E0</SourceRule>
+        <Attributes>
+            <Attribute name="user_id">1004</Attribute>
+            <Attribute name="bike_id">2025</Attribute>
+            <Attribute name="session_id">1</Attribute>
+            <Attribute name="station_id">25</Attribute>
+            <Attribute name="station_name">E 14 St &amp; Avenue B</Attribute>
+            <Attribute name="location_data">(-73.982612, 40.729553)</Attribute>
+            <Attribute name="credit_card_num">4111111111111114</Attribute>
+            <Attribute name="is_member">1</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>ReportLocation</Type>
+        <Time>330</Time>
+        <SourceRule>E2</SourceRule>
+        <Attributes>
+            <Attribute name="bike_id">2025</Attribute>
+            <Attribute name="session_id">1</Attribute>
+            <Attribute name="user_id">1004</Attribute>
+            <Attribute name="is_member">1</Attribute>
+            <Attribute name="location_data">NULL</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>ReturnBike</Type>
+        <Time>400</Time>
+        <SourceRule>E1</SourceRule>
+        <Attributes>
+            <Attribute name="user_id">1004</Attribute>
+            <Attribute name="bike_id">2025</Attribute>
+            <Attribute name="station_id">NULL20</Attribute>
+            <Attribute name="session_id">1</Attribute>
+            <Attribute name="station_name">NULL22</Attribute>
+            <Attribute name="location_data">NULL23</Attribute>
+            <Attribute name="credit_card_num">4111111111111114</Attribute>
+            <Attribute name="is_member">1</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>END</Type>
+        <Time>401</Time>
+        <SourceRule>TERMINATE</SourceRule>
+        <Attributes />
+    </Event>
+    <Event>
+        <Type>START</Type>
+        <Time>500</Time>
+        <SourceRule>START</SourceRule>
+        <Attributes />
+    </Event>
+    <Event>
+        <Type>RentBike</Type>
+        <Time>501</Time>
+        <SourceRule>E0</SourceRule>
+        <Attributes>
+            <Attribute name="user_id">1041</Attribute>
+            <Attribute name="bike_id">2016</Attribute>
+            <Attribute name="session_id">2</Attribute>
+            <Attribute name="station_id">16</Attribute>
+            <Attribute name="station_name">W 4 St &amp; 7 Ave S</Attribute>
+            <Attribute name="location_data">(-74.002638, 40.734011)</Attribute>
+            <Attribute name="credit_card_num">4469162708369</Attribute>
+            <Attribute name="is_member">1</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>ReportLocation</Type>
+        <Time>530</Time>
+        <SourceRule>E2</SourceRule>
+        <Attributes>
+            <Attribute name="bike_id">2016</Attribute>
+            <Attribute name="session_id">2</Attribute>
+            <Attribute name="user_id">1041</Attribute>
+            <Attribute name="is_member">1</Attribute>
+            <Attribute name="location_data">NULL</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>ReturnBike</Type>
+        <Time>600</Time>
+        <SourceRule>E1</SourceRule>
+        <Attributes>
+            <Attribute name="user_id">1041</Attribute>
+            <Attribute name="bike_id">2016</Attribute>
+            <Attribute name="station_id">NULL32</Attribute>
+            <Attribute name="session_id">2</Attribute>
+            <Attribute name="station_name">NULL34</Attribute>
+            <Attribute name="location_data">NULL35</Attribute>
+            <Attribute name="credit_card_num">4469162708369</Attribute>
+            <Attribute name="is_member">1</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>END</Type>
+        <Time>601</Time>
+        <SourceRule>TERMINATE</SourceRule>
+        <Attributes />
+    </Event>
+    <Event>
+        <Type>START</Type>
+        <Time>700</Time>
+        <SourceRule>START</SourceRule>
+        <Attributes />
+    </Event>
+    <Event>
+        <Type>RentBike</Type>
+        <Time>701</Time>
+        <SourceRule>E0</SourceRule>
+        <Attributes>
+            <Attribute name="user_id">1006</Attribute>
+            <Attribute name="bike_id">2001</Attribute>
+            <Attribute name="session_id">3</Attribute>
+            <Attribute name="station_id">1</Attribute>
+            <Attribute name="station_name">W 21 St &amp; 6 Ave</Attribute>
+            <Attribute name="location_data">(-73.994155, 40.74174)</Attribute>
+            <Attribute name="credit_card_num">4111111111111116</Attribute>
+            <Attribute name="is_member">1</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>ReportLocation</Type>
+        <Time>730</Time>
+        <SourceRule>E2</SourceRule>
+        <Attributes>
+            <Attribute name="bike_id">2001</Attribute>
+            <Attribute name="session_id">3</Attribute>
+            <Attribute name="user_id">1006</Attribute>
+            <Attribute name="is_member">1</Attribute>
+            <Attribute name="location_data">NULL</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>ReturnBike</Type>
+        <Time>800</Time>
+        <SourceRule>E1</SourceRule>
+        <Attributes>
+            <Attribute name="user_id">1006</Attribute>
+            <Attribute name="bike_id">2001</Attribute>
+            <Attribute name="station_id">NULL44</Attribute>
+            <Attribute name="session_id">3</Attribute>
+            <Attribute name="station_name">NULL46</Attribute>
+            <Attribute name="location_data">NULL47</Attribute>
+            <Attribute name="credit_card_num">4111111111111116</Attribute>
+            <Attribute name="is_member">1</Attribute>
+        </Attributes>
+    </Event>
+    <Event>
+        <Type>END</Type>
+        <Time>801</Time>
+        <SourceRule>TERMINATE</SourceRule>
+        <Attributes />
+    </Event>
+</EventStream>
