@@ -335,11 +335,17 @@ def main():
                     continue
                 attributes[name] = attr_elem.text
 
-            context = {"event_type": event_type, "attributes": attributes}
+            context = {
+                "event_type": event_type,
+                "attributes": attributes,
+                "runtime_state": runtime_state,
+            }
             filler.fill_event_attributes(event_type, attributes, context)
 
             for match_fields in fill_spec.get_source_match_fields(event_type):
                 runtime_state.record(event_type, attributes, match_fields)
+            if "session_id" in attributes:
+                runtime_state.record(event_type, attributes, ["session_id"])
 
             for attr_elem in attributes_elem.findall("Attribute"):
                 name = attr_elem.get("name")
@@ -353,7 +359,12 @@ def main():
         print(args.skeletons_out)
         return
 
-    context = {"event_type": args.event_type, "attribute": args.attribute}
+    context = {
+        "event_type": args.event_type,
+        "attribute": args.attribute,
+        "attributes": {},
+        "runtime_state": runtime_state,
+    }
     value = filler.fill_attribute(args.event_type, args.attribute, context)
     print(value)
 

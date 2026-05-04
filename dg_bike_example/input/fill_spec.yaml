@@ -67,7 +67,42 @@ events:
       source_event: RentBike
       source_attribute: is_member
       match_on: session_id
+    location_data:
+      category: generate
+      function_name: generate_report_location
+      params:
+        max_miles: 40
+      depends_on:
+        - session_id
   ReturnBike:
+    station_id:
+      category: generate
+      function_name: choose_return_station
+      params:
+        max_miles: 40
+      depends_on:
+        - session_id
+        - bike_id
+    station_name:
+      category: lookup
+      params:
+        table: Stations
+        lookup_on: station_id
+        where_column: station_id
+        value_column: name
+      depends_on:
+        - station_id
+    location_data:
+      category: lookup
+      params:
+        table: Stations
+        lookup_on: station_id
+        where_column: station_id
+        value_columns:
+          - longitude
+          - latitude
+      depends_on:
+        - station_id
     user_id:
       category: copy
       source_event: RentBike
