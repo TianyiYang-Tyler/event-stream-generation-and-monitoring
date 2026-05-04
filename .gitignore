@@ -1,3 +1,4 @@
 .DS_Store
 pycache/
 *.pyc
+Wallet_resources/
