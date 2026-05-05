@@ -1,0 +1,125 @@
+events:
+  RentBike:
+    user_id:
+      category: generate
+      function_name: choose_or_generate_user
+      params:
+        probability_new: 0.2
+    station_id:
+      category: select
+      function_name: choose_station
+    station_name:
+      category: lookup
+      params:
+        table: Stations
+        lookup_on: station_id
+        where_column: station_id
+        value_column: name
+      depends_on:
+        - station_id
+    location_data:
+      category: lookup
+      params:
+        table: Stations
+        lookup_on: station_id
+        where_column: station_id
+        value_columns:
+          - longitude
+          - latitude
+      depends_on:
+        - station_id
+    credit_card_num:
+      category: lookup
+      params:
+        table: Users
+        lookup_on: user_id
+        where_column: user_id
+        value_column: credit_card_num
+      depends_on:
+        - user_id
+    is_member:
+      category: lookup
+      params:
+        table: Users
+        lookup_on: user_id
+        where_column: user_id
+        value_column: is_member
+      depends_on:
+        - user_id
+    bike_id:
+      category: dependent_select
+      function_name: choose_available_bike
+      depends_on:
+        - station_id
+  ReportLocation:
+    user_id:
+      category: copy
+      source_event: RentBike
+      source_attribute: user_id
+      match_on: session_id
+    bike_id:
+      category: copy
+      source_event: RentBike
+      source_attribute: bike_id
+      match_on: session_id
+    is_member:
+      category: copy
+      source_event: RentBike
+      source_attribute: is_member
+      match_on: session_id
+    location_data:
+      category: generate
+      function_name: generate_report_location
+      params:
+        max_miles: 40
+      depends_on:
+        - session_id
+  ReturnBike:
+    station_id:
+      category: generate
+      function_name: choose_return_station
+      params:
+        max_miles: 40
+      depends_on:
+        - session_id
+        - bike_id
+    station_name:
+      category: lookup
+      params:
+        table: Stations
+        lookup_on: station_id
+        where_column: station_id
+        value_column: name
+      depends_on:
+        - station_id
+    location_data:
+      category: lookup
+      params:
+        table: Stations
+        lookup_on: station_id
+        where_column: station_id
+        value_columns:
+          - longitude
+          - latitude
+      depends_on:
+        - station_id
+    user_id:
+      category: copy
+      source_event: RentBike
+      source_attribute: user_id
+      match_on: session_id
+    bike_id:
+      category: copy
+      source_event: RentBike
+      source_attribute: bike_id
+      match_on: session_id
+    credit_card_num:
+      category: copy
+      source_event: RentBike
+      source_attribute: credit_card_num
+      match_on: session_id
+    is_member:
+      category: copy
+      source_event: RentBike
+      source_attribute: is_member
+      match_on: session_id
