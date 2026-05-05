@@ -48,11 +48,18 @@ def unit_to_ratio(unit):
         return -1
 
 def time_conversion(org, base_time_granularity):
-	if org['unit'] == 'DEFAULT':
-		return org['value']
-	if (unit_to_ratio(org['unit']) * int(org['value'])) % (unit_to_ratio(base_time_granularity['unit']) * int(base_time_granularity['value'])) != 0:	
-		raise ValueError(f"{org} violates base granularity constraint!")
-	return (unit_to_ratio(org['unit']) * int(org['value'])) / (unit_to_ratio(base_time_granularity['unit']) * int(base_time_granularity['value']))
+    if org['unit'] == 'DEFAULT':
+        return int(org['value'])   # 🔥 FIX: cast to int
+
+    if (unit_to_ratio(org['unit']) * int(org['value'])) % (
+        unit_to_ratio(base_time_granularity['unit']) * int(base_time_granularity['value'])
+    ) != 0:
+        raise ValueError(f"{org} violates base granularity constraint!")
+
+    return int(
+        (unit_to_ratio(org['unit']) * int(org['value'])) /
+        (unit_to_ratio(base_time_granularity['unit']) * int(base_time_granularity['value']))
+    )
 
 def extract_events(data):
     events = {}
@@ -688,7 +695,7 @@ def generate_event_stream_outputs(
 
             # --- XML ---
             for evt in instance:
-                if evt["type"] != "START":
+                if evt["type"] not in ["START", "END"]:
                     event_to_xml(root, evt)
 
             # --- WORKFLOW LOG ---
@@ -703,37 +710,126 @@ def generate_event_stream_outputs(
     # close log
     log_file.close()
 
-events = extract_events(data_dict)
-edges_dict = extract_event_edges(data_dict)
-refs = extract_event_refs(data_dict)
-dists = extract_distributions(data_dict)
+def run_quick_test(edges_by_source, events, event_refs, distributions, start, auto_counters, num_instances):
+    import random
+    # find TIMECOUNT distribution
+    start_dist = None
+    for d in distributions:
+        if d["type"] == "timecount_distribution":
+            start_dist = d
+            break
 
-edge_objs = build_edges(edges_dict, dists)
-edges_by_source = build_edges_by_source(edge_objs)
+    if not start_dist:
+        raise ValueError("Missing TIMECOUNT distribution")
 
-base = data_dict['root']['global_configurations']['base_time_granularity']
+    print(f"\n=== QUICK TEST: {num_instances} INSTANCE(S) ===\n")
 
-start = time_conversion(
-    data_dict['root']['global_configurations']['time_range']['start_time'],
-    base
-)
+    for inst_id in range(num_instances):
 
-end = time_conversion(
-    data_dict['root']['global_configurations']['time_range']['end_time'],
-    base
-)
+        # pick a bucket (you can randomize or keep first)
+        bucket = random.choice(start_dist["distribution"])
+
+        start_h = int(bucket["distribution_range"]["start"])
+        end_h   = int(bucket["distribution_range"]["end"])
+
+        start_t = int(start + start_h * start_dist["ratio"])
+        end_t   = int(start + end_h   * start_dist["ratio"])
+
+        base_time = random.randrange(start_t, end_t)
+
+        instance = generate_instance(
+            edges_by_source,
+            events,
+            event_refs,
+            base_time,
+            auto_counters
+        )
+
+        # remove START/END
+        instance = [e for e in instance if e["type"] not in ("START", "END")]
+
+        instance.sort(key=lambda x: x["time"])
+
+        print(f"\n--- Instance {inst_id} ---")
+
+        for i, evt in enumerate(instance, 1):
+            print(f"{i:02d} | t={evt['time']:4d} | {evt['type']} | rule={evt['source_rule_id']}")
+            for k, v in evt["attrs"].items():
+                print(f"     {k}: {v}")
 
 
-generate_event_stream_outputs(
-    edges_by_source,
-    events,
-    refs,
-    dists,
-    start,
-    end,
-    "./output_xml/bike_rental_stream.xml",
-    "./bike_rental_log.txt"
-)
+
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description="Event stream generator")
+
+    parser.add_argument(
+        "--quick_test",
+        nargs="?",
+        const=1,
+        type=int,
+        help="Generate and print N instances (default = 1 if flag is used without value)"
+    )
+
+    args = parser.parse_args()
+
+    # --- Load data ---
+    with open('output_xml/bike_rental_info.xml', 'r', encoding='utf-8') as file:
+        data_dict = xmltodict.parse(file.read())
+
+    events = extract_events(data_dict)
+    edges_dict = extract_event_edges(data_dict)
+    refs = extract_event_refs(data_dict)
+    dists = extract_distributions(data_dict)
+
+    edge_objs = build_edges(edges_dict, dists)
+    edges_by_source = build_edges_by_source(edge_objs)
+
+    base = data_dict['root']['global_configurations']['base_time_granularity']
+
+    start = time_conversion(
+        data_dict['root']['global_configurations']['time_range']['start_time'],
+        base
+    )
+
+    end = time_conversion(
+        data_dict['root']['global_configurations']['time_range']['end_time'],
+        base
+    )
+
+    # 🔥 GLOBAL AUTO_INCREMENT counters
+    auto_counters = {}
+    for evt in refs:
+        if "AUTO_INCREMENT" in refs[evt]:
+            for attr in refs[evt]["AUTO_INCREMENT"]:
+                auto_counters[attr] = 0
+
+    if args.quick_test is not None:
+        run_quick_test(
+            edges_by_source,
+            events,
+            refs,
+            dists,
+            start,
+            auto_counters,
+            args.quick_test
+        )
+    else:
+        generate_event_stream_outputs(
+            edges_by_source,
+            events,
+            refs,
+            dists,
+            start,
+            end,
+            "./output_xml/bike_rental_stream.xml",
+            "./bike_rental_log.txt"
+        )
+
+
+if __name__ == "__main__":
+    main()
 
 ''' 
 idx = 0
