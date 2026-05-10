@@ -150,7 +150,7 @@ def generate_report_location(context, max_miles=10, sf_bounds=None, attempts=10)
 	import random
 
 	if sf_bounds is None:
-		sf_bounds = (-122.5247, -122.3569, 37.7081, 37.8324)
+		sf_bounds = (-122.55, -121.80, 37.25, 37.95)
 
 	def parse_location(value):
 		if value is None:
@@ -232,7 +232,7 @@ def choose_return_station(context, max_miles=10, sf_bounds=None):
 	from data_generator_engine.db_oracle import get_connection
 
 	if sf_bounds is None:
-		sf_bounds = (-122.5247, -122.3569, 37.7081, 37.8324)
+		sf_bounds = (-122.55, -121.80, 37.25, 37.95)
 
 	def parse_location(value):
 		if value is None:

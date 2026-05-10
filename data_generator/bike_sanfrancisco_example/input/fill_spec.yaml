@@ -5,9 +5,23 @@ events:
       function_name: choose_or_generate_user
       params:
         probability_new: 0.2
+      distribution:
+        type: categorical
+        values:
+          existing: 0.8
+          new: 0.2
+        bucket_by:
+          kind: db_membership
+          seeded_max_user_id: 4000
+        tolerance: 0.08
     station_id:
       category: select
       function_name: choose_station
+      distribution:
+        type: uniform_over_column
+        table: Stations
+        column: station_id
+        tolerance: 0.10
     station_name:
       category: lookup
       params:
@@ -51,6 +65,11 @@ events:
       function_name: choose_available_bike
       depends_on:
         - station_id
+      distribution:
+        type: uniform_over_column
+        table: Bikes
+        column: bike_id
+        tolerance: 0.10
   ReportLocation:
     user_id:
       category: copy
@@ -83,6 +102,11 @@ events:
       depends_on:
         - session_id
         - bike_id
+      distribution:
+        type: uniform_over_column
+        table: Stations
+        column: station_id
+        tolerance: 0.10
     station_name:
       category: lookup
       params:

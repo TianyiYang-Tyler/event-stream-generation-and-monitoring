@@ -60,7 +60,8 @@ SF_STATION_NAMES = [
 	"Pier 39",
 	"Fort Mason Center",
 ]
-SF_BOUNDS = (-122.5247, -122.3569, 37.7081, 37.8324)
+# Bay Wheels stations and generated report locations span a broad Bay Area footprint.
+SF_BOUNDS = (-122.55, -121.80, 37.25, 37.95)
 
 
 def qualify(table: str) -> str:
