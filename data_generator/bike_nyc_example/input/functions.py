@@ -7,11 +7,20 @@ def choose_or_generate_user(context, probability_new=0.2):
 
 	conn = get_connection()
 	cursor = conn.cursor()
-	cursor.execute("SELECT user_id FROM Users WHERE user_id IS NOT NULL")
-	existing_ids = [row[0] for row in cursor.fetchall()]
-
-	if existing_ids and random.random() >= probability_new:
-		return random.choice(existing_ids)
+	if random.random() >= probability_new:
+		cursor.execute(
+			"""
+			SELECT user_id FROM (
+				SELECT user_id
+				FROM Users
+				WHERE user_id IS NOT NULL
+				ORDER BY dbms_random.value
+			) WHERE ROWNUM = 1
+			"""
+		)
+		row = cursor.fetchone()
+		if row is not None:
+			return row[0]
 
 	cursor.execute("SELECT MAX(user_id) FROM Users")
 	max_user_id = cursor.fetchone()[0]

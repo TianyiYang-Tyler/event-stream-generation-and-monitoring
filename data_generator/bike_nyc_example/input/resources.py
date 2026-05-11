@@ -497,7 +497,7 @@ def main() -> None:
 				(
 					i,
 					2000 + i,
-					"Goober Bike",
+					"Big Apple Bikes",
 					model,
 					model,
 					status,
