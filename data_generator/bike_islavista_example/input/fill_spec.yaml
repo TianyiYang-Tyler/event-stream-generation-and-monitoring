@@ -1,0 +1,169 @@
+events:
+  RentBike:
+    user_id:
+      category: generate
+      function_name: choose_or_generate_user
+      params:
+        probability_new: 0.2
+      # ~80% of rentals reuse an existing user, ~20% create a new one.
+      # We can't enumerate user_ids ahead of time, so we validate the
+      # *new vs existing* split by checking whether each user_id seen
+      # in RentBike.user_id was already present in the seeded Users table.
+      distribution:
+        type: categorical
+        # "existing" = user_id was in Users before generation started
+        # "new"      = user_id was created by choose_or_generate_user
+        values:
+          existing: 0.8
+          new: 0.2
+        # how to bucket an observed user_id into existing/new at validation time
+        bucket_by:
+          kind: db_membership
+          table: Users
+          column: user_id
+          # user_ids present in the *seeded* range (<= seeded_max_user_id) are "existing"
+          seeded_max_user_id: 1200  # 1000 + USERS_COUNT(200) from resources.py
+        tolerance: 0.08
+    station_id:
+      category: select
+      function_name: choose_station
+      # choose_station picks uniformly among stations with bikes_available > 0.
+      # We treat the expected distribution as uniform over the 15 station_ids.
+      distribution:
+        type: uniform_over_column
+        table: Stations
+        column: station_id
+        tolerance: 0.10  # only 250 RentBike events / 15 stations -> ~17 each, expect noise
+    station_name:
+      category: lookup
+      params:
+        table: Stations
+        lookup_on: station_id
+        where_column: station_id
+        value_column: name
+      depends_on:
+        - station_id
+    location_data:
+      category: lookup
+      params:
+        table: Stations
+        lookup_on: station_id
+        where_column: station_id
+        value_columns:
+          - longitude
+          - latitude
+      depends_on:
+        - station_id
+    credit_card_num:
+      category: lookup
+      params:
+        table: Users
+        lookup_on: user_id
+        where_column: user_id
+        value_column: credit_card_num
+      depends_on:
+        - user_id
+    is_member:
+      category: lookup
+      params:
+        table: Users
+        lookup_on: user_id
+        where_column: user_id
+        value_column: is_member
+      depends_on:
+        - user_id
+    bike_id:
+      category: dependent_select
+      function_name: choose_available_bike
+      depends_on:
+        - station_id
+      # choose_available_bike picks uniformly among available bikes at the
+      # chosen station. Marginal expected distribution over all bike_ids is
+      # roughly uniform over the seeded bikes (2001..2065).
+      distribution:
+        type: uniform_over_column
+        table: Bikes
+        column: bike_id
+        tolerance: 0.10
+  ReportLocation:
+    user_id:
+      category: copy
+      source_event: RentBike
+      source_attribute: user_id
+      match_on: session_id
+    bike_id:
+      category: copy
+      source_event: RentBike
+      source_attribute: bike_id
+      match_on: session_id
+    is_member:
+      category: copy
+      source_event: RentBike
+      source_attribute: is_member
+      match_on: session_id
+    location_data:
+      category: generate
+      function_name: generate_report_location
+      params:
+        max_miles: 5
+      depends_on:
+        - session_id
+      # location_data here is a (lon, lat) pair — not a categorical value —
+      # so we don't specify a categorical distribution.
+  ReturnBike:
+    station_id:
+      category: generate
+      function_name: choose_return_station
+      params:
+        max_miles: 5
+      depends_on:
+        - session_id
+        - bike_id
+      # choose_return_station filters to stations within max_miles of the
+      # last ReportLocation, then picks uniformly. The marginal expected
+      # distribution is roughly uniform over the 15 stations.
+      distribution:
+        type: uniform_over_column
+        table: Stations
+        column: station_id
+        tolerance: 0.10
+    station_name:
+      category: lookup
+      params:
+        table: Stations
+        lookup_on: station_id
+        where_column: station_id
+        value_column: name
+      depends_on:
+        - station_id
+    location_data:
+      category: lookup
+      params:
+        table: Stations
+        lookup_on: station_id
+        where_column: station_id
+        value_columns:
+          - longitude
+          - latitude
+      depends_on:
+        - station_id
+    user_id:
+      category: copy
+      source_event: RentBike
+      source_attribute: user_id
+      match_on: session_id
+    bike_id:
+      category: copy
+      source_event: RentBike
+      source_attribute: bike_id
+      match_on: session_id
+    credit_card_num:
+      category: copy
+      source_event: RentBike
+      source_attribute: credit_card_num
+      match_on: session_id
+    is_member:
+      category: copy
+      source_event: RentBike
+      source_attribute: is_member
+      match_on: session_id
