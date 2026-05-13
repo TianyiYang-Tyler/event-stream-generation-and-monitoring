@@ -48,11 +48,18 @@ def unit_to_ratio(unit):
         return -1
 
 def time_conversion(org, base_time_granularity):
-	if org['unit'] == 'DEFAULT':
-		return org['value']
-	if (unit_to_ratio(org['unit']) * int(org['value'])) % (unit_to_ratio(base_time_granularity['unit']) * int(base_time_granularity['value'])) != 0:	
-		raise ValueError(f"{org} violates base granularity constraint!")
-	return (unit_to_ratio(org['unit']) * int(org['value'])) / (unit_to_ratio(base_time_granularity['unit']) * int(base_time_granularity['value']))
+    if org['unit'] == 'DEFAULT':
+        return int(org['value'])   # 🔥 FIX: cast to int
+
+    if (unit_to_ratio(org['unit']) * int(org['value'])) % (
+        unit_to_ratio(base_time_granularity['unit']) * int(base_time_granularity['value'])
+    ) != 0:
+        raise ValueError(f"{org} violates base granularity constraint!")
+
+    return int(
+        (unit_to_ratio(org['unit']) * int(org['value'])) /
+        (unit_to_ratio(base_time_granularity['unit']) * int(base_time_granularity['value']))
+    )
 
 def extract_events(data):
     events = {}
@@ -109,24 +116,27 @@ def extract_event_refs(data):
             attr_name = attr['attribute_name']
             attr_type = attr['attribute_type']
 
-            # 🔥 FIX: normalize to dict
+            # normalize
             if isinstance(attr_type, str):
-                attr_type = {"type": attr_type}
+                attr_type = {'type': attr_type}
 
-            attr_type_name = attr_type.get('type')
+            t = attr_type.get('type')
 
-            # -------- EVENT REFERENCE --------
-            if attr_type_name == 'event_reference':
+            if t == 'event_reference':
                 src_event = attr_type['event_name']
                 src_attr = attr_type['event_values']
 
+                refs.setdefault(event_name, {})
                 refs[event_name].setdefault(src_event, {})
                 refs[event_name][src_event][attr_name] = src_attr
 
-            # -------- AUTO_INCREMENT --------
-            elif attr_type_name in ['global_restricted', 'AUTO_INCREMENT']:
+            elif t == 'AUTO_INCREMENT':
+                refs.setdefault(event_name, {})
                 refs[event_name].setdefault("AUTO_INCREMENT", {})
                 refs[event_name]["AUTO_INCREMENT"][attr_name] = 0
+
+            # ✅ IMPORTANT: DO NOTHING for global_restricted
+            # it should NOT appear in refs at all
 
     return refs
 
@@ -324,6 +334,56 @@ def new_null(state):
     state["null_counter"] += 1
     return val
 
+def build_edges_by_source(edge_objs):
+    edges_by_source = {}
+
+    for rid, edge in edge_objs.items():
+
+        if rid == 'TERMINATE':
+            for e in edge:
+                for src in e['SOURCE']:
+                    edges_by_source.setdefault(src, []).append(e)
+            continue
+
+        for src in edge['SOURCE']:
+            edges_by_source.setdefault(src, []).append(edge)
+
+    return edges_by_source
+
+def sample_time(dist_obj):
+    if not dist_obj:
+        return 0
+
+    if dist_obj['type'] == 'time_distribution':
+        val = sample_from_distribution(dist_obj['distribution'])
+        return int(val * dist_obj['ratio'])
+
+    elif dist_obj['type'] == 'TIME_EXACTLY':
+        return int(dist_obj['value'])
+
+    elif dist_obj['type'] == 'TIME_RANGE':
+        return random.randrange(int(dist_obj['start']), int(dist_obj['end']))
+
+    return 0
+
+
+def sample_count(dist_obj):
+    if not dist_obj:
+        return 1
+
+    if dist_obj['type'] == 'COUNT_EXACTLY':
+        return dist_obj['value']
+
+    elif dist_obj['type'] == 'COUNT_RANGE':
+        return random.randrange(dist_obj['start'], dist_obj['end'])
+
+    return 1
+
+def new_null(state):
+    val = f"NULL{state['null_counter']}"
+    state["null_counter"] += 1
+    return val
+
 def build_attributes(event_type, state, parent_events, event_refs):
 
     attrs = {}
@@ -333,14 +393,20 @@ def build_attributes(event_type, state, parent_events, event_refs):
 
         # -------- EVENT REFERENCE --------
         found = False
+
         for src_event, mapping in event_refs.get(event_type, {}).items():
             if src_event == "AUTO_INCREMENT":
                 continue
 
-            if attr in mapping and src_event in parent_events:
-                attrs[attr] = parent_events[src_event]["attrs"][mapping[attr]]
-                found = True
-                break
+            if attr in mapping:
+
+                # 🔥 USE CANONICAL PARENT INSTEAD OF DIRECT PARENT
+                if src_event in state["canonical_parents"]:
+                    src_evt = state["canonical_parents"][src_event]
+
+                    attrs[attr] = src_evt["attrs"][mapping[attr]]
+                    found = True
+                    break
 
         if found:
             continue
@@ -374,7 +440,8 @@ def generate_instance(edges_by_source, events, event_refs, start_time, auto_coun
         "null_counter": 0,
         "events_schema": events,
         "auto_counters": auto_counters,
-        "instance_values": {}
+        "instance_values": {},
+        "canonical_parents": {}
     }
 
     # 🔥 ADD START EVENT
@@ -456,6 +523,13 @@ def generate_instance(edges_by_source, events, event_refs, start_time, auto_coun
                     state["events"].append(evt)
                     state["event_counts"][tgt] = state["event_counts"].get(tgt, 0) + 1
                     state["event_instances"].setdefault(tgt, []).append(evt)
+
+                    # 🔥 CANONICAL PARENT LOGIC
+                    # If this event type has no canonical parent yet → set it
+                    if tgt not in state["canonical_parents"]:
+                        state["canonical_parents"][tgt] = evt
+
+                    # Otherwise KEEP existing canonical (important for loops!)
 
                     for next_edge in edges_by_source.get(tgt, []):
                         state["active_edges"].add(next_edge.get("rule_id", "TERMINATE"))
@@ -541,14 +615,17 @@ def generate_event_stream_to_xml(
             )
 
             for evt in instance:
-                event_to_xml(root, evt)
+                if evt["type"] not in ("START", "END"):
+                    event_to_xml(root, evt)
 
     tree = ET.ElementTree(root)
     tree.write(output_file, encoding="utf-8", xml_declaration=True)
 
 def write_workflow_log(file, instance_events, enactment_id):
 
-    # sort all events INCLUDING START/END
+    # filter out START
+    instance_events = [e for e in instance_events if e["type"] != "START"]
+
     instance_events.sort(key=lambda x: x["time"])
 
     for idx, evt in enumerate(instance_events, start=1):
@@ -618,7 +695,8 @@ def generate_event_stream_outputs(
 
             # --- XML ---
             for evt in instance:
-                event_to_xml(root, evt)
+                if evt["type"] not in ["START", "END"]:
+                    event_to_xml(root, evt)
 
             # --- WORKFLOW LOG ---
             write_workflow_log(log_file, instance, enactment_id)
@@ -632,37 +710,126 @@ def generate_event_stream_outputs(
     # close log
     log_file.close()
 
-events = extract_events(data_dict)
-edges_dict = extract_event_edges(data_dict)
-refs = extract_event_refs(data_dict)
-dists = extract_distributions(data_dict)
+def run_quick_test(edges_by_source, events, event_refs, distributions, start, auto_counters, num_instances):
+    import random
+    # find TIMECOUNT distribution
+    start_dist = None
+    for d in distributions:
+        if d["type"] == "timecount_distribution":
+            start_dist = d
+            break
 
-edge_objs = build_edges(edges_dict, dists)
-edges_by_source = build_edges_by_source(edge_objs)
+    if not start_dist:
+        raise ValueError("Missing TIMECOUNT distribution")
 
-base = data_dict['root']['global_configurations']['base_time_granularity']
+    print(f"\n=== QUICK TEST: {num_instances} INSTANCE(S) ===\n")
 
-start = time_conversion(
-    data_dict['root']['global_configurations']['time_range']['start_time'],
-    base
-)
+    for inst_id in range(num_instances):
 
-end = time_conversion(
-    data_dict['root']['global_configurations']['time_range']['end_time'],
-    base
-)
+        # pick a bucket (you can randomize or keep first)
+        bucket = random.choice(start_dist["distribution"])
+
+        start_h = int(bucket["distribution_range"]["start"])
+        end_h   = int(bucket["distribution_range"]["end"])
+
+        start_t = int(start + start_h * start_dist["ratio"])
+        end_t   = int(start + end_h   * start_dist["ratio"])
+
+        base_time = random.randrange(start_t, end_t)
+
+        instance = generate_instance(
+            edges_by_source,
+            events,
+            event_refs,
+            base_time,
+            auto_counters
+        )
+
+        # remove START/END
+        instance = [e for e in instance if e["type"] not in ("START", "END")]
+
+        instance.sort(key=lambda x: x["time"])
+
+        print(f"\n--- Instance {inst_id} ---")
+
+        for i, evt in enumerate(instance, 1):
+            print(f"{i:02d} | t={evt['time']:4d} | {evt['type']} | rule={evt['source_rule_id']}")
+            for k, v in evt["attrs"].items():
+                print(f"     {k}: {v}")
 
 
-generate_event_stream_outputs(
-    edges_by_source,
-    events,
-    refs,
-    dists,
-    start,
-    end,
-    "./output_xml/bike_rental_stream.xml",
-    "./bike_rental_log.txt"
-)
+
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description="Event stream generator")
+
+    parser.add_argument(
+        "--quick_test",
+        nargs="?",
+        const=1,
+        type=int,
+        help="Generate and print N instances (default = 1 if flag is used without value)"
+    )
+
+    args = parser.parse_args()
+
+    # --- Load data ---
+    with open('output_xml/bike_rental_info.xml', 'r', encoding='utf-8') as file:
+        data_dict = xmltodict.parse(file.read())
+
+    events = extract_events(data_dict)
+    edges_dict = extract_event_edges(data_dict)
+    refs = extract_event_refs(data_dict)
+    dists = extract_distributions(data_dict)
+
+    edge_objs = build_edges(edges_dict, dists)
+    edges_by_source = build_edges_by_source(edge_objs)
+
+    base = data_dict['root']['global_configurations']['base_time_granularity']
+
+    start = time_conversion(
+        data_dict['root']['global_configurations']['time_range']['start_time'],
+        base
+    )
+
+    end = time_conversion(
+        data_dict['root']['global_configurations']['time_range']['end_time'],
+        base
+    )
+
+    # 🔥 GLOBAL AUTO_INCREMENT counters
+    auto_counters = {}
+    for evt in refs:
+        if "AUTO_INCREMENT" in refs[evt]:
+            for attr in refs[evt]["AUTO_INCREMENT"]:
+                auto_counters[attr] = 0
+
+    if args.quick_test is not None:
+        run_quick_test(
+            edges_by_source,
+            events,
+            refs,
+            dists,
+            start,
+            auto_counters,
+            args.quick_test
+        )
+    else:
+        generate_event_stream_outputs(
+            edges_by_source,
+            events,
+            refs,
+            dists,
+            start,
+            end,
+            "./output_xml/bike_rental_stream.xml",
+            "./bike_rental_log.txt"
+        )
+
+
+if __name__ == "__main__":
+    main()
 
 ''' 
 idx = 0

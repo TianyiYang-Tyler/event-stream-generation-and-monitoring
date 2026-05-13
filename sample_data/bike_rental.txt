@@ -34,7 +34,7 @@ CREATE EventType ReturnBike (
 	user_id: INHERIT RentBike(user_id),
 	bike_id: INHERIT RentBike(bike_id),
 	station_id: Station(station_id) FOREIGNKEY,
-	session_id: RentBike(session_id) FOREIGNKEY,
+	session_id: INHERIT RentBike(session_id) FOREIGNKEY,
 	station_name: Station(station_name),
 	location_data: Station(longitude,latitude),
 	credit_card_num: INHERIT RentBike(credit_card_num),
@@ -47,7 +47,7 @@ CREATE EventType ReportLocation (
 	INGESTTIME (1) MAXDELAY (10),
 	bike_id: RentBike(bike_id),
 	session_id: INHERIT RentBike(session_id) FOREIGNKEY,
-	user_id: INHERIT RentBike(session_id),
+	user_id: INHERIT RentBike(user_id),
 	is_member: INHERIT RentBike(is_member),
 	location_data: IN Grid_map,
 	session_id -> (bike_id, user_id, is_member)
