@@ -4,556 +4,336 @@ import xmltodict
 import xml.etree.ElementTree as ET
 import math
 
-def poisson(lam):
-    L = math.exp(-lam)
-    k = 0
-    p = 1
-
-    while p > L:
-        k += 1
-        p *= random.random()
-
-    return k - 1
-
-def create_xml_root():
-    root = ET.Element("EventStream")
-    return root
-
-def event_to_xml(parent, event):
-    evt_elem = ET.SubElement(parent, "Event")
-
-    ET.SubElement(evt_elem, "Type").text = event["type"]
-    ET.SubElement(evt_elem, "Time").text = str(event["time"])
-    ET.SubElement(evt_elem, "SourceRule").text = event["source_rule_id"]
-
-    attrs_elem = ET.SubElement(evt_elem, "Attributes")
-
-    for k, v in event["attrs"].items():
-        attr_elem = ET.SubElement(attrs_elem, "Attribute", name=k)
-        attr_elem.text = str(v)
-
-def unit_to_ratio(unit):
-    unit = unit.upper()
-    if unit in ['MICROSECOND', 'MS']:
-        return 1
-    elif unit in ['SECOND', 'SEC']:
-        return 1e6
-    elif unit in ['MINUTE', 'MIN']:
-        return 6 * 1e7
-    elif unit == 'HOUR':
-        return 3.6 * 1e9
-    elif unit == 'DAY':
-        return 8.64 * 1e10
-    else:
-        return -1
-
-def time_conversion(org, base_time_granularity):
-    if org['unit'] == 'DEFAULT':
-        return int(org['value'])   # 🔥 FIX: cast to int
-
-    if (unit_to_ratio(org['unit']) * int(org['value'])) % (
-        unit_to_ratio(base_time_granularity['unit']) * int(base_time_granularity['value'])
-    ) != 0:
-        raise ValueError(f"{org} violates base granularity constraint!")
-
-    return int(
-        (unit_to_ratio(org['unit']) * int(org['value'])) /
-        (unit_to_ratio(base_time_granularity['unit']) * int(base_time_granularity['value']))
-    )
-
-def extract_events(data):
-    events = {}
-
-    for event in data['root']['event_type_definitions']:
-        name = event['event_name']
-        attrs = [attr['attribute_name'] for attr in event['attributes']]
-        events[name] = attrs
-
-    return events
-
-def extract_event_edges(data):
-    edges = {}
-
-    for rule in data['root']['process_schema']:
-
-        if rule['type'] == 'START':
-            rule_id = rule['rule_id']
-            edges[rule_id] = {
-                "SOURCE": ["START"],
-                "TARGET": [rule['target_events']['event_name']]
-            }
-
-        elif rule['type'] == 'CAUSE':
-            rule_id = rule['rule_id']
-            source = rule['source_events']
-            target = rule['target_event']['event_name']
-
-            edges[rule_id] = {
-                "SOURCE": [source] if isinstance(source, str) else source,
-                "TARGET": [target]
-            }
-
-        else: # TERMINATE
-            source = rule['source_events']
-            target = rule['target_event']
-            if 'TERMINATE' not in edges:
-            	edges['TERMINATE'] = []
-            edges['TERMINATE'].append( {
-                "SOURCE": [source] if isinstance(source, str) else source,
-                "TARGET": [target]
-            } )
-
-    return edges
-
-def extract_event_refs(data):
-    refs = {}
-
-    for event in data['root']['event_type_definitions']:
-        event_name = event['event_name']
-        refs[event_name] = {}
-
-        for attr in event['attributes']:
-            attr_name = attr['attribute_name']
-            attr_type = attr['attribute_type']
-
-            # normalize
-            if isinstance(attr_type, str):
-                attr_type = {'type': attr_type}
-
-            t = attr_type.get('type')
-
-            if t == 'event_reference':
-                src_event = attr_type['event_name']
-                src_attr = attr_type['event_values']
-
-                refs.setdefault(event_name, {})
-                refs[event_name].setdefault(src_event, {})
-                refs[event_name][src_event][attr_name] = src_attr
-
-            elif t == 'AUTO_INCREMENT':
-                refs.setdefault(event_name, {})
-                refs[event_name].setdefault("AUTO_INCREMENT", {})
-                refs[event_name]["AUTO_INCREMENT"][attr_name] = 0
-
-            # ✅ IMPORTANT: DO NOTHING for global_restricted
-            # it should NOT appear in refs at all
-
-    return refs
-
-def sample_from_distribution(dist):
-    weights = [int(d['value']) for d in dist]
-    choices = list(range(len(dist)))
-
-    idx = random.choices(choices, weights=weights, k=1)[0]
-    chosen = dist[idx]['distribution_range']
-
-    start = int(chosen['start'])
-    end = int(chosen['end'])
-
-    return random.randrange(start, end)  # right exclusive
-
-def extract_distributions(data):
-    results = []
-
-    base = data['root']['global_configurations']['base_time_granularity']
-
-    # --- 1. event_distributions ---
-    for dist in data['root'].get('event_distributions', []):
-        results.append({
-            "rule_id": dist['rule_id'],  # NOTE: it's event_name, not rule_id
-            "type": dist['type'],
-            "ratio": time_conversion(dist['base_time_granularity_value'], base),
-            "distribution": dist['distribution']
-        })
-
-    # --- 2. process_schema conditions ---
-    for rule in data['root']['process_schema']:
-
-        # skip rules without rule_id (e.g., TERMINATE safety)
-        rule_id = rule.get('rule_id')
-        if not rule_id:
-            continue
-
-        if rule['type'] != 'CAUSE':
-            continue
-
-        target = rule.get('target_event', {})
-
-        # -------- TIME CONDITION --------
-        tc = target.get('time_condition')
-        if tc:
-            if tc['type'] == 'EXACTLY':
-                val = time_conversion(tc['time'], base)
-                results.append({
-                    "rule_id": rule_id,
-                    "type": "TIME_EXACTLY",
-                    "value": val
-                })
-
-            elif tc['type'] == 'RANGE':
-                start = time_conversion(tc['start_time'], base)
-                end = time_conversion(tc['end_time'], base)
-                results.append({
-                    "rule_id": rule_id,
-                    "type": "TIME_RANGE",
-                    "start": start,
-                    "end": end
-                })
-
-        # -------- COUNT CONDITION --------
-        cc = target.get('count_condition')
-        if cc:
-            if cc['type'] == 'EXACTLY':
-                results.append({
-                    "rule_id": rule_id,
-                    "type": "COUNT_EXACTLY",
-                    "value": int(cc['count'])
-                })
-
-            elif cc['type'] == 'RANGE':
-                results.append({
-                    "rule_id": rule_id,
-                    "type": "COUNT_RANGE",
-                    "start": int(cc['start']),
-                    "end": int(cc['end'])
-                })
-
-    return results
-
-data_dict = {}
-# From a file
-with open('output_xml/bike_rental_info.xml', 'r', encoding='utf-8') as file:
-    data_dict = xmltodict.parse(file.read())
-
-base_time_granularity = data_dict['root']['global_configurations']['base_time_granularity']
-start, end = time_conversion(data_dict['root']['global_configurations']['time_range']['start_time'], base_time_granularity), time_conversion(data_dict['root']['global_configurations']['time_range']['end_time'], base_time_granularity)
-
-#print(data_dict)
-#print(extract_events(data_dict))
-#print(extract_event_refs(data_dict))
-#print(extract_event_edges(data_dict))
-#print(extract_distributions(data_dict))
-#print(sample_from_distribution(extract_distributions(data_dict)))
-
-def build_edges(edges_dict, distributions):
-    dist_map = {}
-
-    # group distributions by rule_id
-    for d in distributions:
-        rid = d['rule_id']
-        if rid not in dist_map:
-            dist_map[rid] = []
-        dist_map[rid].append(d)
-
-    edge_objs = {}
-
-    for rid, edge in edges_dict.items():
-
-        if rid == 'TERMINATE':
-            # list of terminate edges
-            edge_objs['TERMINATE'] = []
-            for e in edge:
-                edge_objs['TERMINATE'].append({
-                    "rule_id": "TERMINATE",
-                    "type": "TERMINATE",
-                    "SOURCE": e["SOURCE"],
-                    "TARGET": e["TARGET"],
-                    "time_dist": None,
-                    "count_dist": None
-                })
-            continue
-
-        # normal edges
-        time_dist = None
-        count_dist = None
-
-        for d in dist_map.get(rid, []):
-            if d['type'] in ['time_distribution', 'TIME_EXACTLY', 'TIME_RANGE']:
-                time_dist = d
-            elif d['type'].startswith('COUNT'):
-                count_dist = d
-
-        edge_objs[rid] = {
-            "rule_id": rid,
-            "type": "CAUSE" if rid != 'E0' else "START",
-            "SOURCE": edge["SOURCE"],
-            "TARGET": edge["TARGET"],
-            "time_dist": time_dist,
-            "count_dist": count_dist
-        }
-
-    return edge_objs
-
-def build_edges_by_source(edge_objs):
-    edges_by_source = {}
-
-    for rid, edge in edge_objs.items():
-
-        if rid == 'TERMINATE':
-            for e in edge:
-                for src in e['SOURCE']:
-                    edges_by_source.setdefault(src, []).append(e)
-            continue
-
-        for src in edge['SOURCE']:
-            edges_by_source.setdefault(src, []).append(edge)
-
-    return edges_by_source
-
-def sample_time(dist_obj):
-    if not dist_obj:
-        return 0
-
-    if dist_obj['type'] == 'time_distribution':
-        val = sample_from_distribution(dist_obj['distribution'])
-        return int(val * dist_obj['ratio'])
-
-    elif dist_obj['type'] == 'TIME_EXACTLY':
-        return int(dist_obj['value'])
-
-    elif dist_obj['type'] == 'TIME_RANGE':
-        return random.randrange(int(dist_obj['start']), int(dist_obj['end']))
-
-    return 0
-
-
-def sample_count(dist_obj):
-    if not dist_obj:
-        return 1
-
-    if dist_obj['type'] == 'COUNT_EXACTLY':
-        return dist_obj['value']
-
-    elif dist_obj['type'] == 'COUNT_RANGE':
-        return random.randrange(dist_obj['start'], dist_obj['end'])
-
-    return 1
-
-def new_null(state):
-    val = f"NULL{state['null_counter']}"
-    state["null_counter"] += 1
-    return val
-
-def build_edges_by_source(edge_objs):
-    edges_by_source = {}
-
-    for rid, edge in edge_objs.items():
-
-        if rid == 'TERMINATE':
-            for e in edge:
-                for src in e['SOURCE']:
-                    edges_by_source.setdefault(src, []).append(e)
-            continue
-
-        for src in edge['SOURCE']:
-            edges_by_source.setdefault(src, []).append(edge)
-
-    return edges_by_source
-
-def sample_time(dist_obj):
-    if not dist_obj:
-        return 0
-
-    if dist_obj['type'] == 'time_distribution':
-        val = sample_from_distribution(dist_obj['distribution'])
-        return int(val * dist_obj['ratio'])
-
-    elif dist_obj['type'] == 'TIME_EXACTLY':
-        return int(dist_obj['value'])
-
-    elif dist_obj['type'] == 'TIME_RANGE':
-        return random.randrange(int(dist_obj['start']), int(dist_obj['end']))
-
-    return 0
-
-
-def sample_count(dist_obj):
-    if not dist_obj:
-        return 1
-
-    if dist_obj['type'] == 'COUNT_EXACTLY':
-        return dist_obj['value']
-
-    elif dist_obj['type'] == 'COUNT_RANGE':
-        return random.randrange(dist_obj['start'], dist_obj['end'])
-
-    return 1
-
-def new_null(state):
-    val = f"NULL{state['null_counter']}"
-    state["null_counter"] += 1
-    return val
-
-def build_attributes(event_type, state, parent_events, event_refs):
-
-    attrs = {}
-    schema_attrs = state["events_schema"][event_type]
-
-    for attr in schema_attrs:
-
-        # -------- EVENT REFERENCE --------
-        found = False
-
-        for src_event, mapping in event_refs.get(event_type, {}).items():
-            if src_event == "AUTO_INCREMENT":
-                continue
-
-            if attr in mapping:
-
-                # 🔥 USE CANONICAL PARENT INSTEAD OF DIRECT PARENT
-                if src_event in state["canonical_parents"]:
-                    src_evt = state["canonical_parents"][src_event]
-
-                    attrs[attr] = src_evt["attrs"][mapping[attr]]
-                    found = True
-                    break
-
-        if found:
-            continue
-
-        # -------- AUTO_INCREMENT --------
-        if "AUTO_INCREMENT" in event_refs.get(event_type, {}) and \
-           attr in event_refs[event_type]["AUTO_INCREMENT"]:
-
-            if attr not in state["instance_values"]:
-                val = state["auto_counters"].get(attr, 0)
-                state["auto_counters"][attr] = val + 1
-                state["instance_values"][attr] = val
-
-            attrs[attr] = state["instance_values"][attr]
-            continue
-
-        # -------- DEFAULT NULL --------
-        attrs[attr] = f"NULL{state['null_counter']}"
-        state["null_counter"] += 1
-
-    return attrs
-
-def generate_instance(edges_by_source, events, event_refs, start_time, auto_counters):
-
+from helpers import *
+
+import heapq
+import itertools
+
+def generate_instance(
+    edges_by_source,
+    events,
+    event_refs,
+    start_time,
+    auto_counters,
+    raw_schema, 
+    termination_rules=None
+):
+    """
+    3-layer simulation model
+
+    Layers:
+        1. EVENT STREAM
+        2. RULE SCHEDULER
+        3. TERMINATION CONTROLLER
+
+    Core invariant:
+        Once a termination activates, affected rules are removed
+        from future scheduling entirely.
+    """
+
+    # =========================================================
+    # STATE
+    # =========================================================
     state = {
         "event_counts": {},
         "events": [],
         "event_instances": {},
-        "active_edges": set(),
-        "terminated": False,
         "null_counter": 0,
         "events_schema": events,
         "auto_counters": auto_counters,
         "instance_values": {},
-        "canonical_parents": {}
+        "canonical_parents": {},
+        "table_null_pool": {}
     }
 
-    # 🔥 ADD START EVENT
+    # =========================================================
+    # TERMINATION ENGINE
+    # =========================================================
+    termination_state = []
+
+    if termination_rules:
+        for rule in termination_rules:
+
+            srcs = rule["source"]
+
+            if isinstance(srcs, str):
+                srcs = [srcs]
+
+            tgts = rule["terminator"]
+
+            # normalize ALL
+            if tgts == ["ALL"]:
+                tgts = "ALL"
+
+            elif isinstance(tgts, str):
+
+                if tgts != "ALL":
+                    tgts = [tgts]
+
+            termination_state.append({
+                "sources": set(srcs),
+                "seen": set(),
+                "targets": tgts,
+                "active": False,
+                "termination_time": None
+            })
+
+    # =========================================================
+    # RULE REGISTRY
+    # =========================================================
+    active_rule_ids = set()
+
+    for src, edge_list in edges_by_source.items():
+        for edge in edge_list:
+            active_rule_ids.add(edge["rule_id"])
+
+    # =========================================================
+    # START EVENT
+    # =========================================================
     start_event = {
         "type": "START",
-        "time": start_time - 1, 
+        "time": start_time - 1,
         "attrs": {},
         "source_rule_id": "START"
     }
+
     state["events"].append(start_event)
+    state["event_instances"]["START"] = [start_event]
 
+    # =========================================================
+    # RULE EXECUTION HEAP
+    # =========================================================
+    #
+    # heap item:
+    #
+    # (
+    #     scheduled_time,
+    #     insertion_counter,
+    #     edge,
+    #     trigger_event
+    # )
+    #
+    # =========================================================
+    work_heap = []
+
+    counter = itertools.count()
+    processed_termination_events = set()
+
+    def push_rule(edge, trigger_event, scheduled_time):
+
+        if edge["rule_id"] not in active_rule_ids:
+            return
+
+        heapq.heappush(
+            work_heap,
+            (
+                scheduled_time,
+                next(counter),
+                edge,
+                trigger_event
+            )
+        )
+
+    # seed START
     for edge in edges_by_source.get("START", []):
-        state["active_edges"].add(edge["rule_id"])
+        push_rule(edge, start_event, start_event["time"])
 
-    while state["active_edges"] and not state["terminated"]:
+    # =========================================================
+    # TERMINATION HELPERS
+    # =========================================================
+    def activate_terminations(evt):
 
-        progress = False
+        evt_type = evt["type"]
+        evt_time = evt["time"]
 
-        for rid in list(state["active_edges"]):
+        for term in termination_state:
 
-            edge = None
-            for e_list in edges_by_source.values():
-                for e in e_list:
-                    if e.get("rule_id") == rid:
-                        edge = e
-                        break
-                if edge:
-                    break
-
-            if not edge:
+            if term["active"]:
                 continue
 
-            if edge["SOURCE"] == ["START"]:
-                triggerable = True
-            else:
-                triggerable = all(
-                    state["event_counts"].get(src, 0) > 0
-                    for src in edge["SOURCE"]
+            if evt_type in term["sources"]:
+                term["seen"].add(evt_type)
+
+            if term["sources"].issubset(term["seen"]):
+
+                term["active"] = True
+                term["termination_time"] = evt_time
+
+                # ---------------------------------------------
+                # RULE-LEVEL DEACTIVATION
+                # ---------------------------------------------
+                targets = term["targets"]
+
+                if targets == "ALL":
+                    # Don't clear rules — event_blocked() enforces the time cutoff.
+                    # Only record termination_time so event_blocked() can filter by timestamp.
+                    return
+
+                # TERMINATE specific event generators
+                for src, edges in edges_by_source.items():
+
+                    for edge in edges:
+
+                        if any(
+                            tgt in targets
+                            for tgt in edge["TARGET"]
+                        ):
+                            active_rule_ids.discard(
+                                edge["rule_id"]
+                            )
+
+    def event_blocked(event_type, event_time):
+
+        for term in termination_state:
+
+            if not term["active"]:
+                continue
+
+            cutoff = term["termination_time"]
+
+            if cutoff is not None and event_time >= cutoff:
+
+                if term["targets"] == "ALL":
+                    return True
+
+                if event_type in term["targets"]:
+                    return True
+
+        return False
+
+    # =========================================================
+    # MAIN LOOP
+    # =========================================================
+    while work_heap:
+
+        _, _, edge, trigger_evt = heapq.heappop(work_heap)
+        # =====================================================
+        # CHRONOLOGICAL TERMINATION ACTIVATION
+        # =====================================================
+        evt_key = (
+            trigger_evt["type"],
+            trigger_evt["time"],
+            id(trigger_evt)
+        )
+
+        if evt_key not in processed_termination_events:
+
+            activate_terminations(trigger_evt)
+
+            processed_termination_events.add(evt_key)
+
+        # GLOBAL TERMINATION — check if ALL termination has fired and we're past its time
+        all_terminated = any(
+            term["active"] and term["targets"] == "ALL"
+            for term in termination_state
+        )
+        # Don't break immediately — let event_blocked() handle time filtering.
+        # Only break if the heap only contains events past the cutoff (handled naturally).
+
+        # rule already terminated
+        if edge["rule_id"] not in active_rule_ids:
+            continue
+
+        # =====================================================
+        # BUILD PARENTS
+        # =====================================================
+        parent_events = {}
+
+        for src in edge["SOURCE"]:
+
+            if src == "START":
+                parent_events[src] = start_event
+
+            elif src == trigger_evt["type"]:
+                parent_events[src] = trigger_evt
+
+        if any(
+            src not in parent_events
+            for src in edge["SOURCE"]
+        ):
+            continue
+
+        parent_time = max(
+            evt["time"]
+            for evt in parent_events.values()
+        )
+
+        # =====================================================
+        # SAMPLE COUNT
+        # =====================================================
+        count_dist = edge.get("count_dist")
+        if count_dist is None:
+            count = 1
+        else:
+            count = sample_count(count_dist)
+        for _ in range(count):
+
+            for tgt in edge["TARGET"]:
+
+                # =================================================
+                # SAMPLE TIME
+                # =================================================
+                time_dist = edge.get("time_dist")
+
+                if time_dist is None:
+                    delay = 1
+                else:
+                    delay = sample_time(time_dist)
+
+                event_time = parent_time + delay
+
+                # =================================================
+                # TERMINATION FILTER
+                # =================================================
+                if event_blocked(tgt, event_time):
+                    continue
+
+                # =================================================
+                # BUILD ATTRIBUTES
+                # =================================================
+                attrs = build_attributes(tgt, state, parent_events, event_refs, raw_schema)
+
+                evt = {
+                    "type": tgt,
+                    "time": event_time,
+                    "attrs": attrs,
+                    "source_rule_id": edge["rule_id"]
+                }
+
+                # =================================================
+                # STORE EVENT
+                # =================================================
+                state["events"].append(evt)
+                # ✅ ADD THIS — activate terminations on emission, not just on pop
+                activate_terminations(evt)
+
+                state["event_counts"][tgt] = (
+                    state["event_counts"].get(tgt, 0) + 1
                 )
 
-            if not triggerable:
-                continue
+                state["event_instances"].setdefault(
+                    tgt,
+                    []
+                ).append(evt)
 
-            parent_times = []
-            parent_events = {}
+                if tgt not in state["canonical_parents"]:
+                    state["canonical_parents"][tgt] = evt
 
-            for src in edge["SOURCE"]:
-                if src == "START":
-                    parent_times.append(start_time)
-                else:
-                    evt = state["event_instances"][src][-1]
-                    parent_times.append(evt["time"])
-                    parent_events[src] = evt
-
-            parent_time = max(parent_times)
-
-            count = sample_count(edge["count_dist"])
-
-            for _ in range(count):
-                for tgt in edge["TARGET"]:
-
-                    delay = sample_time(edge["time_dist"])
-                    event_time = parent_time + delay
-
-                    attrs = build_attributes(
-                        tgt,
-                        state,
-                        parent_events,
-                        event_refs
-                    )
-
-                    evt = {
-                        "type": tgt,
-                        "time": event_time,
-                        "attrs": attrs,
-                        "source_rule_id": edge["rule_id"]
-                    }
-
-                    state["events"].append(evt)
-                    state["event_counts"][tgt] = state["event_counts"].get(tgt, 0) + 1
-                    state["event_instances"].setdefault(tgt, []).append(evt)
-
-                    # 🔥 CANONICAL PARENT LOGIC
-                    # If this event type has no canonical parent yet → set it
-                    if tgt not in state["canonical_parents"]:
-                        state["canonical_parents"][tgt] = evt
-
-                    # Otherwise KEEP existing canonical (important for loops!)
+                # =================================================
+                # RULE SCHEDULING
+                # =================================================
+                if active_rule_ids:
 
                     for next_edge in edges_by_source.get(tgt, []):
-                        state["active_edges"].add(next_edge.get("rule_id", "TERMINATE"))
 
-            state["active_edges"].remove(rid)
-            progress = True
+                        push_rule(next_edge, evt, event_time)
 
-        if not progress:
-            break
-
-    # 🔥 ADD END EVENT
-    if state["events"]:
-        last_time = max(evt["time"] for evt in state["events"])
-    else:
-        last_time = start_time
-
-    end_event = {
-        "type": "END",
-        "time": last_time + 1,
-        "attrs": {},
-        "source_rule_id": "TERMINATE"
-    }
-
-    state["events"].append(end_event)
+    # =========================================================
+    # FINAL SORT
+    # =========================================================
+    state["events"].sort(
+        key=lambda x: x["time"]
+    )
 
     return state["events"]
 
@@ -580,15 +360,15 @@ def generate_event_stream_to_xml(
             for attr in event_refs[evt]["AUTO_INCREMENT"]:
                 auto_counters[attr] = 0
 
-    # find TIMECOUNT distribution
+    # find START distribution
     start_dist = None
     for d in distributions:
-        if d["type"] == "timecount_distribution":
+        if d["type"] == "start_distribution":
             start_dist = d
             break
 
     if not start_dist:
-        raise ValueError("Missing TIMECOUNT distribution")
+        raise ValueError("Missing START distribution")
 
     # iterate buckets (correct interpretation)
     for bucket in start_dist["distribution"]:
@@ -609,9 +389,10 @@ def generate_event_stream_to_xml(
             instance = generate_instance(
                 edges_by_source,
                 events,
-                event_refs,
+                refs,
                 base_time,
-                auto_counters   # 🔥 pass shared counters
+                auto_counters,
+                termination_rules
             )
 
             for evt in instance:
@@ -640,7 +421,9 @@ def generate_event_stream_outputs(
     start,
     end,
     xml_output,
-    log_output
+    log_output,
+    termination_rules=None,
+    data_dict = None
 ):
 
     import xml.etree.ElementTree as ET
@@ -658,15 +441,15 @@ def generate_event_stream_outputs(
             for attr in event_refs[evt]["AUTO_INCREMENT"]:
                 auto_counters[attr] = 0
 
-    # find TIMECOUNT distribution
+    # find START distribution
     start_dist = None
     for d in distributions:
-        if d["type"] == "timecount_distribution":
+        if d["type"] == "start_distribution":
             start_dist = d
             break
 
     if not start_dist:
-        raise ValueError("Missing TIMECOUNT distribution")
+        raise ValueError("Missing START distribution")
 
     enactment_id = 0
 
@@ -686,11 +469,10 @@ def generate_event_stream_outputs(
             base_time = random.randrange(start_t, end_t)
 
             instance = generate_instance(
-                edges_by_source,
-                events,
-                event_refs,
-                base_time,
-                auto_counters
+                edges_by_source, events, event_refs,
+                base_time, auto_counters,
+                raw_schema=data_dict['root']['event_type_definitions'],
+                termination_rules=termination_rules
             )
 
             # --- XML ---
@@ -710,102 +492,189 @@ def generate_event_stream_outputs(
     # close log
     log_file.close()
 
-def run_quick_test(edges_by_source, events, event_refs, distributions, start, auto_counters, num_instances):
+def run_quick_test(
+    edges_by_source,
+    events,
+    refs,
+    distributions,
+    start,
+    auto_counters,
+    num_instances,
+    termination_rules=None,
+    data_dict = None
+):
     import random
-    # find TIMECOUNT distribution
+    import copy
+
+    # -----------------------------------------------------
+    # FIND START DISTRIBUTION
+    # -----------------------------------------------------
     start_dist = None
+
     for d in distributions:
-        if d["type"] == "timecount_distribution":
+        if d["type"] == "start_distribution":
             start_dist = d
             break
 
     if not start_dist:
-        raise ValueError("Missing TIMECOUNT distribution")
+        raise ValueError("Missing START distribution")
 
     print(f"\n=== QUICK TEST: {num_instances} INSTANCE(S) ===\n")
 
+    # -----------------------------------------------------
+    # GENERATE INSTANCES
+    # -----------------------------------------------------
     for inst_id in range(num_instances):
 
-        # pick a bucket (you can randomize or keep first)
-        bucket = random.choice(start_dist["distribution"])
+        bucket = random.choice(
+            start_dist["distribution"]
+        )
 
-        start_h = int(bucket["distribution_range"]["start"])
-        end_h   = int(bucket["distribution_range"]["end"])
+        start_h = int(
+            bucket["distribution_range"]["start"]
+        )
 
-        start_t = int(start + start_h * start_dist["ratio"])
-        end_t   = int(start + end_h   * start_dist["ratio"])
+        end_h = int(
+            bucket["distribution_range"]["end"]
+        )
+
+        start_t = int(
+            start + start_h * start_dist["ratio"]
+        )
+
+        end_t = int(
+            start + end_h * start_dist["ratio"]
+        )
 
         base_time = random.randrange(start_t, end_t)
 
+        # IMPORTANT: do NOT deep copy — auto_counters must persist across instances
         instance = generate_instance(
-            edges_by_source,
-            events,
-            event_refs,
-            base_time,
-            auto_counters
+            edges_by_source, events, refs,
+            base_time, auto_counters,        # ← pass directly
+            raw_schema=data_dict['root']['event_type_definitions'],
+            termination_rules=termination_rules
         )
 
-        # remove START/END
-        instance = [e for e in instance if e["type"] not in ("START", "END")]
+        # remove synthetic events
+        instance = [
+            e for e in instance
+            if e["type"] not in ("START", "END")
+        ]
 
-        instance.sort(key=lambda x: x["time"])
+        instance.sort(
+            key=lambda x: x["time"]
+        )
 
-        print(f"\n--- Instance {inst_id} ---")
+        print(f"\n--- Instance {inst_id + 1} ---")
+
+        if not instance:
+            print("(empty instance)")
+            continue
 
         for i, evt in enumerate(instance, 1):
-            print(f"{i:02d} | t={evt['time']:4d} | {evt['type']} | rule={evt['source_rule_id']}")
+
+            print(
+                f"{i:02d} | "
+                f"t={evt['time']:5d} | "
+                f"{evt['type']} | "
+                f"rule={evt['source_rule_id']}"
+            )
+
             for k, v in evt["attrs"].items():
                 print(f"     {k}: {v}")
-
-
 
 import argparse
 
 def main():
+
     parser = argparse.ArgumentParser(description="Event stream generator")
+
+    parser.add_argument(
+        "--name",
+        required=True,
+        help="Base name of the input/output files (e.g. bike_rental)"
+    )
 
     parser.add_argument(
         "--quick_test",
         nargs="?",
         const=1,
         type=int,
-        help="Generate and print N instances (default = 1 if flag is used without value)"
+        help="Generate and print N instances instead of full stream"
     )
 
     args = parser.parse_args()
 
-    # --- Load data ---
-    with open('output_xml/bike_rental_info.xml', 'r', encoding='utf-8') as file:
+    # --------------------------------------------------
+    # File paths derived from --name
+    # --------------------------------------------------
+
+    input_file = f"./output_xml/{args.name}_info.xml"
+
+    xml_output = f"./output_xml/{args.name}_stream.xml"
+
+    log_output = f"./{args.name}_log.txt"
+
+    # --------------------------------------------------
+    # Load input XML
+    # --------------------------------------------------
+
+    with open(input_file, 'r', encoding='utf-8') as file:
         data_dict = xmltodict.parse(file.read())
 
+    # --------------------------------------------------
+    # Build structures
+    # --------------------------------------------------
+
     events = extract_events(data_dict)
+
     edges_dict = extract_event_edges(data_dict)
+
     refs = extract_event_refs(data_dict)
+
     dists = extract_distributions(data_dict)
 
     edge_objs = build_edges(edges_dict, dists)
-    edges_by_source = build_edges_by_source(edge_objs)
+
+    edges_by_source, termination_rules = build_edges_by_source(edge_objs)
+
+    # --------------------------------------------------
+    # Time range
+    # --------------------------------------------------
 
     base = data_dict['root']['global_configurations']['base_time_granularity']
 
-    start = time_conversion(
+    start = int(time_conversion(
         data_dict['root']['global_configurations']['time_range']['start_time'],
         base
-    )
+    ))
 
-    end = time_conversion(
+    end = int(time_conversion(
         data_dict['root']['global_configurations']['time_range']['end_time'],
         base
-    )
+    ))
 
-    # 🔥 GLOBAL AUTO_INCREMENT counters
+    # --------------------------------------------------
+    # GLOBAL AUTO_INCREMENT counters
+    # --------------------------------------------------
+
     auto_counters = {}
+
     for evt in refs:
+
         if "AUTO_INCREMENT" in refs[evt]:
+
             for attr in refs[evt]["AUTO_INCREMENT"]:
+
                 auto_counters[attr] = 0
 
+    # --------------------------------------------------
+    # QUICK TEST MODE
+    # --------------------------------------------------
+
     if args.quick_test is not None:
+
         run_quick_test(
             edges_by_source,
             events,
@@ -813,9 +682,17 @@ def main():
             dists,
             start,
             auto_counters,
-            args.quick_test
+            num_instances=args.quick_test,
+            termination_rules=termination_rules,
+            data_dict = data_dict
         )
+
+    # --------------------------------------------------
+    # FULL GENERATION
+    # --------------------------------------------------
+
     else:
+
         generate_event_stream_outputs(
             edges_by_source,
             events,
@@ -823,37 +700,12 @@ def main():
             dists,
             start,
             end,
-            "./output_xml/bike_rental_stream.xml",
-            "./bike_rental_log.txt"
+            xml_output,
+            log_output,
+            termination_rules=termination_rules,
+            data_dict = data_dict
         )
 
 
 if __name__ == "__main__":
     main()
-
-''' 
-idx = 0
-event_stream = {}
-
-while curr <= end:
-	num = num_dist[curr % granularity]
-	active_edges = deque(["E0"])
-	curr_event_stream = {}
-	for _ in range(num):
-		curr_events = [{k: []} for k in events.keys()]
-		t = random.randint(0, granularity)
-		curr_edge = active_edges.popleft()
-		while any(e not in finished for e in event_edges[curr_edge]["SOURCE"]):
-			active_edges.append(curr_edge)
-			curr_edge = active_edges.popleft()
-		for target in event_edges[curr_edge]["TARGET"]:
-			target_event = events[target]
-			for k in event_refs[target]:
-				if k.key() == "AUTO_INCREMENT":
-					for att, val in k["AUTO_INCREMENT"]:
-						target_event[att] = val
-						k["AUTO_INCREMENT"][att] = val + 1
-				else:
-					ref_event = k.key()	
-	curr += granularity
-'''

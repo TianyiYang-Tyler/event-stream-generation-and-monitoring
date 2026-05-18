@@ -13,7 +13,6 @@ FUNCTIONS
 city_block_distance,
 END FUNCTIONS
 
-
 CREATE EVENTTYPE RentBike (
 	EVENTTIME  1,
 	INGESTTIME (1) MAXDELAY (10),
@@ -45,7 +44,7 @@ CREATE EventType ReturnBike (
 CREATE EventType ReportLocation (
 	EVENTTIME  1,
 	INGESTTIME (1) MAXDELAY (10),
-	bike_id: RentBike(bike_id),
+	bike_id: INHERIT RentBike(bike_id),
 	session_id: INHERIT RentBike(session_id) FOREIGNKEY,
 	user_id: INHERIT RentBike(user_id),
 	is_member: INHERIT RentBike(is_member),
@@ -59,7 +58,7 @@ E2: CAUSE RentBike; ReportLocation TIME EXACTLY 30MINUTE
 E3: CAUSE ReportLocation; ReportLocation TIME EXACTLY 1HOUR
 TERMINATE ReturnBike
 
-CREATE TIMECOUNT DISTRIBUTION FOR E0 (
+CREATE DISTRIBUTION FOR START (
 	BASE_TIME_GRANULARITY = 1 HOUR,
 	[0,8) : 500,
 	[8,9) : 800,

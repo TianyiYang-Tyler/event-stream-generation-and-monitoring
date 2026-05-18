@@ -1,0 +1,153 @@
+BASE_TIME_GRANULARITY = 1MINUTE
+START = 0,
+END = 5DAY
+
+RESOURCES 
+TABLES
+Products,
+END TABLES
+VARIABLES
+END VARIABLES
+FUNCTIONS
+END FUNCTIONS
+
+CREATE EVENTTYPE Order (
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (2),
+	user_id: CHAR(10),
+	order_id: AUTO_INCREMENT,
+	shipping_location: CHAR(10),
+	order_details: CHAR(255),
+	order_id -> (user_id, order_id, order_details)
+)
+
+CREATE EVENTTYPE AddItem (
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (2),
+	user_id: CHAR(10),
+	order_id: INHERIT Order(order_id),
+	item_id: Products(id),
+	order_id -> user_id
+)
+
+CREATE EVENTTYPE Confirm_payment(
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (2),
+	user_id: CHAR(10),
+	order_id: INHERIT Order(order_id),
+	shipping_location: CHAR(10),
+	order_details: CHAR(255),
+	credit_card_num: CHAR(50),
+	order_id -> (user_id, order_id, order_details)
+)
+
+CREATE EVENTTYPE Ship (
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (2),
+	user_id: CHAR(10),
+	order_id: INHERIT Confirm_payment(order_id),
+	shipping_location: CHAR(10),
+	order_details: CHAR(255),
+	order_id -> (user_id, order_id, order_details)
+)
+
+CREATE EVENTTYPE Confirm_arrival (
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (2),
+	user_id: CHAR(10),
+	order_id: INHERIT Ship(order_id),
+	shipping_location: CHAR(10),
+	order_details: CHAR(255),
+	order_id -> (user_id, order_id, order_details
+	))
+
+CREATE EVENTTYPE Delivery_out (
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (2),
+	user_id: CHAR(10),
+	order_id: INHERIT Confirm_arrival(order_id),
+	delivery_location: CHAR(10),
+	order_details: CHAR(255),
+	order_id -> (user_id, order_id, order_details)
+)
+
+CREATE EVENTTYPE Confirm_delivery (
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (2),
+	user_id: CHAR(10),
+	order_id: INHERIT Delivery_out(order_id),
+	order_details: CHAR(255),
+	order_id -> (user_id, order_id, order_details)
+)
+
+CREATE EVENTTYPE Rate_order (
+	EVENTTIME  1,
+	INGESTTIME (1) MAXDELAY (2),
+	user_id: CHAR(10),
+	order_id: INHERIT Confirm_delivery(order_id),
+	order_details: CHAR(255),
+	customer_comment: CHAR(255),
+	customer_rating: CHAR(2),
+	order_id -> (user_id, order_id, order_details)
+)
+
+E0: CAUSE START; Order
+E2: CAUSE Order; AddItem
+E1: CAUSE Order; Confirm_payment TIME BETWEEN 1min AND 30min
+E3: CAUSE Confirm_payment; Ship TIME BETWEEN 1min AND 1DAY
+E4: CAUSE Ship; Confirm_arrival TIME BETWEEN 1HOUR AND 2DAY
+E5: CAUSE Confirm_arrival; Ship TIME BETWEEN 1min AND 1DAY
+E6: CAUSE Confirm_arrival; Delivery_out TIME BETWEEN 1DAY AND 10DAY
+E7: CAUSE Delivery_out; Confirm_delivery TIME BETWEEN 1min AND 1HOUR
+E8: CAUSE Confirm_delivery; Rate_order
+TERMINATE Confirm_payment; AddItem
+TERMINATE Delivery_out; Ship
+
+CREATE DISTRIBUTION FOR START (
+    BASE_TIME_GRANULARITY = 1 HOUR,
+    [0,8) : 500,
+    [8,9) : 300,
+    [9,10) : 440,
+    [10,11) : 540,
+    [11,12) : 800,
+    [12,14): 950,
+    [14,16): 900,
+    [16,18): 800,
+    [18,19): 650,
+    [19,21): 920,
+    [21,22): 500,
+    [22,24): 700
+)
+
+CREATE TIME DISTRIBUTION FOR E2 (
+    BASE_TIME_GRANULARITY = 1 HOUR,
+    [0,1) : 500,
+    [1,2) : 800,
+    [2,3) : 940,
+    [3,4) : 650,
+    [4,5) : 300
+)
+
+CREATE COUNT DISTRIBUTION FOR E2 (
+    [0,1) : 500,
+    [1,2) : 800,
+    [2,3) : 940,
+    [3,6) : 650,
+    [6,12) : 100
+)
+
+CREATE TIME DISTRIBUTION FOR E3 (
+    BASE_TIME_GRANULARITY = 1 HOUR,
+    [0,1) : 500,
+    [1,2) : 800,
+    [2,3) : 940,
+    [3,4) : 650,
+    [4,5) : 300
+)
+
+CREATE COUNT DISTRIBUTION FOR E8 (
+	[0,1): 0.9,
+	[1,2): 0.1
+)
+
+END
