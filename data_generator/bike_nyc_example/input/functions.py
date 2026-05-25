@@ -3,70 +3,26 @@ def choose_or_generate_user(context, probability_new=0.2):
 
 	from faker import Faker
 
-	from data_generator_engine.db_oracle import get_connection
+	cache = context.get("resource_cache")
+	if cache is None:
+		raise RuntimeError("resource_cache is required in context")
 
-	conn = get_connection()
-	cursor = conn.cursor()
+	# Preserve original NYC RNG order: draw first, then decide reuse vs. new.
 	if random.random() >= probability_new:
-		cursor.execute(
-			"""
-			SELECT user_id FROM (
-				SELECT user_id
-				FROM Users
-				WHERE user_id IS NOT NULL
-				ORDER BY dbms_random.value
-			) WHERE ROWNUM = 1
-			"""
-		)
-		row = cursor.fetchone()
-		if row is not None:
-			return row[0]
+		existing_ids = list(cache.users.keys())
+		if existing_ids:
+			return random.choice(existing_ids)
 
-	cursor.execute("SELECT MAX(user_id) FROM Users")
-	max_user_id = cursor.fetchone()[0]
-	if max_user_id is None:
-		max_user_id = 1000
-
-	cursor.execute("SELECT MAX(id) FROM Users")
-	max_id = cursor.fetchone()[0]
-	if max_id is None:
-		max_id = 0
-
-	new_user_id = max_user_id + 1
-	new_id = max_id + 1
+	new_user_id, new_id = cache.next_user_ids()
 	faker = Faker()
 	first_name = faker.first_name()
 	last_name = faker.last_name()
 	email = f"{first_name.lower()}.{last_name.lower()}@example.com"
-	phone = faker.numerify("212-###-####")
+	phone = faker.numerify("###-###-####")
 	credit_card_num = faker.credit_card_number()
 	is_member = 1 if faker.boolean() else 0
-	cursor.execute(
-		"""
-		INSERT INTO Users (
-			id,
-			user_id,
-			first_name,
-			last_name,
-			email,
-			phone,
-			credit_card_num,
-			is_member,
-			created_at,
-			updated_at
-		) VALUES (
-			:1,
-			:2,
-			:3,
-			:4,
-			:5,
-			:6,
-			:7,
-			:8,
-			CURRENT_TIMESTAMP,
-			CURRENT_TIMESTAMP
-		)
-		""",
+
+	cache.add_user(
 		(
 			new_id,
 			new_user_id,
@@ -77,26 +33,24 @@ def choose_or_generate_user(context, probability_new=0.2):
 			credit_card_num,
 			is_member,
 		),
+		is_member=is_member,
+		credit_card_num=credit_card_num,
 	)
-	conn.commit()
 	return new_user_id
 
 
 def choose_station(context):
 	import random
 
-	from data_generator_engine.db_oracle import get_connection
+	cache = context.get("resource_cache")
+	if cache is None:
+		raise RuntimeError("resource_cache is required in context")
 
-	conn = get_connection()
-	cursor = conn.cursor()
-	cursor.execute(
-		"""
-		SELECT station_id
-		FROM Stations
-		WHERE bikes_available > 0
-		"""
-	)
-	station_ids = [row[0] for row in cursor.fetchall()]
+	station_ids = [
+		sid
+		for sid, station in cache.stations.items()
+		if (station.get("bikes_available") or 0) > 0
+	]
 	if not station_ids:
 		raise ValueError("No stations with available bikes")
 	return random.choice(station_ids)
@@ -105,52 +59,37 @@ def choose_station(context):
 def choose_available_bike(context):
 	import random
 
-	from data_generator_engine.db_oracle import get_connection
+	cache = context.get("resource_cache")
+	if cache is None:
+		raise RuntimeError("resource_cache is required in context")
 
 	station_id = context["attributes"].get("station_id")
 	if station_id is None:
 		raise KeyError("station_id is required before choosing a bike")
+	try:
+		station_id = int(station_id)
+	except (TypeError, ValueError):
+		raise KeyError("station_id must be numeric before choosing a bike")
 
-	conn = get_connection()
-	cursor = conn.cursor()
-	cursor.execute(
-		"""
-		SELECT bike_id
-		FROM Bikes
-		WHERE station_id = :1
-		  AND status IN ('available')
-		  AND bike_id IS NOT NULL
-		""",
-		(station_id,),
-	)
-	bike_ids = [row[0] for row in cursor.fetchall()]
+	bike_ids = [
+		bid
+		for bid, bike in cache.bikes.items()
+		if bike.get("station_id") == station_id and bike.get("status") == "available"
+	]
 	if not bike_ids:
 		raise ValueError(f"No available bikes at station_id={station_id}")
-	
+
 	selected_bike_id = random.choice(bike_ids)
-	
-	# Update bike status to 'rented'
-	cursor.execute(
-		"""
-		UPDATE Bikes
-		SET status = 'rented'
-		WHERE bike_id = :1
-		""",
-		(selected_bike_id,),
-	)
-	
-	# Decrement bikes_available and increment capacity_available at station
-	cursor.execute(
-		"""
-		UPDATE Stations
-		SET bikes_available = bikes_available - 1,
-		    capacity_available = capacity_available + 1
-		WHERE station_id = :1
-		""",
-		(station_id,),
-	)
-	
-	conn.commit()
+
+	# Mutate bike + station availability in memory; flushed in one batch later.
+	cache.bikes[selected_bike_id]["status"] = "rented"
+	cache.mark_bike_dirty(selected_bike_id)
+
+	station = cache.stations[station_id]
+	station["bikes_available"] = (station.get("bikes_available") or 0) - 1
+	station["capacity_available"] = (station.get("capacity_available") or 0) + 1
+	cache.mark_station_dirty(station_id)
+
 	return selected_bike_id
 
 
@@ -238,7 +177,9 @@ def choose_return_station(context, max_miles=40, nyc_bounds=None):
 	import math
 	import random
 
-	from data_generator_engine.db_oracle import get_connection
+	cache = context.get("resource_cache")
+	if cache is None:
+		raise RuntimeError("resource_cache is required in context")
 
 	if nyc_bounds is None:
 		nyc_bounds = (-74.25909, -73.70018, 40.477399, 40.917577)
@@ -299,63 +240,46 @@ def choose_return_station(context, max_miles=40, nyc_bounds=None):
 
 	lon0, lat0 = last_coords
 
-	conn = get_connection()
-	cursor = conn.cursor()
-	try:
-		cursor.execute(
-			"""
-			SELECT station_id, longitude, latitude
-			FROM Stations
-			WHERE capacity_available > 0
-			"""
-		)
-		rows = cursor.fetchall()
+	rows = [
+		(sid, station.get("longitude"), station.get("latitude"))
+		for sid, station in cache.stations.items()
+		if (station.get("capacity_available") or 0) > 0
+	]
+	if not rows:
+		raise ValueError("No stations with capacity_available > 0")
 
-		if not rows:
-			raise ValueError("No stations with capacity_available > 0")
+	max_distance = float(max_miles)
+	if max_distance <= 0:
+		raise ValueError("max_miles must be positive")
 
-		max_distance = float(max_miles)
-		if max_distance <= 0:
-			raise ValueError("max_miles must be positive")
+	lon_min, lon_max, lat_min, lat_max = nyc_bounds
+	candidates = []
+	for station_id, lon, lat in rows:
+		if lon is None or lat is None:
+			continue
+		if not (lon_min <= lon <= lon_max and lat_min <= lat <= lat_max):
+			continue
+		distance = haversine_miles(lon0, lat0, float(lon), float(lat))
+		if distance <= max_distance:
+			candidates.append(station_id)
 
-		lon_min, lon_max, lat_min, lat_max = nyc_bounds
-		candidates = []
-		for station_id, lon, lat in rows:
-			if lon is None or lat is None:
-				continue
-			if not (lon_min <= lon <= lon_max and lat_min <= lat <= lat_max):
-				continue
-			distance = haversine_miles(lon0, lat0, float(lon), float(lat))
-			if distance <= max_distance:
-				candidates.append(station_id)
+	if not candidates:
+		fallback_ids = [row[0] for row in rows if row[0] is not None]
+		if not fallback_ids:
+			raise ValueError("No stations within range of last ReportLocation")
+		selected_station_id = random.choice(fallback_ids)
+	else:
+		selected_station_id = random.choice(candidates)
 
-		if not candidates:
-			fallback_ids = [row[0] for row in rows if row[0] is not None]
-			if not fallback_ids:
-				raise ValueError("No stations within range of last ReportLocation")
-			selected_station_id = random.choice(fallback_ids)
-		else:
-			selected_station_id = random.choice(candidates)
-		cursor.execute(
-			"""
-			UPDATE Bikes
-			SET station_id = :1,
-			    status = 'available'
-			WHERE bike_id = :2
-			""",
-			(selected_station_id, bike_id),
-		)
-		cursor.execute(
-			"""
-			UPDATE Stations
-			SET bikes_available = bikes_available + 1,
-			    capacity_available = capacity_available - 1
-			WHERE station_id = :1
-			""",
-			(selected_station_id,),
-		)
-		conn.commit()
-		return selected_station_id
-	finally:
-		cursor.close()
-		conn.close()
+	# Mutate bike + station state in memory; flushed in one batch later.
+	if bike_id in cache.bikes:
+		cache.bikes[bike_id]["station_id"] = selected_station_id
+		cache.bikes[bike_id]["status"] = "available"
+		cache.mark_bike_dirty(bike_id)
+
+	station = cache.stations[selected_station_id]
+	station["bikes_available"] = (station.get("bikes_available") or 0) + 1
+	station["capacity_available"] = (station.get("capacity_available") or 0) - 1
+	cache.mark_station_dirty(selected_station_id)
+
+	return selected_station_id

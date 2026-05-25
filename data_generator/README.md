@@ -9,6 +9,46 @@ skeletons_filled.xml in the example's output folder.
 
 ## Folder Structure
 
+```
+data_generator/
+|-- data_generator_engine/
+|   |-- .DS_Store
+|   |-- Wallet_resources/
+|   |-- __init__.py
+|   |-- __pycache__/
+|   |-- db_oracle.py
+|   |-- generator.py
+|   |-- validate_distributions.py
+|   `-- validate_filled_skeleton.py
+|-- bike_islavista_example/
+|   |-- input/
+|   |   |-- DATA_GENERATOR_SPECIFICATION.txt
+|   |   |-- cepal.xml
+|   |   |-- fill_spec.yaml
+|   |   |-- functions.py
+|   |   |-- resources.py
+|   |   `-- skeletons.xml
+|   `-- output/
+|-- bike_sanfrancisco_example/
+|   |-- input/
+|   |   |-- DATA_GENERATOR_SPECIFICATION.txt
+|   |   |-- cepal.xml
+|   |   |-- fill_spec.yaml
+|   |   |-- functions.py
+|   |   |-- resources.py
+|   |   `-- skeletons.xml
+|   `-- output/
+|-- bike_nyc_example/
+|   |-- input/
+|   |   |-- DATA_GENERATOR_SPECIFICATION.txt
+|   |   |-- cepal.xml
+|   |   |-- fill_spec.yaml
+|   |   |-- functions.py
+|   |   |-- resources.py
+|   |   `-- skeletons.xml
+|   `-- output/
+```
+
 - data_generator_engine/
   - Core generator code and runtime logic.
 - bike_islavista_example/
@@ -131,6 +171,8 @@ Validate distributions defined in fill_spec.yaml:
 
 Each example's input/resources.py bootstraps the Oracle tables used by the
 generator:
+
+    python3 data_generator/<example>/input/resources.py
 
 - Drops and recreates tables when DROP_EXISTING is enabled.
 - Seeds Users, Stations, and Bikes with Faker-based data.

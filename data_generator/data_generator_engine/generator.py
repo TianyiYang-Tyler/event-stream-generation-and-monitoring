@@ -114,6 +114,39 @@ class SkeletonFiller:
             raise ValueError(f"Invalid SQL identifier for {field_name}: {value}")
         return value
 
+    def _lookup_from_cache(self, cache, table, where_column, selected_columns, lookup_value):
+        """Return rows ([tuple]) from the in-memory cache for supported
+        table/key combos, or None to signal a DB fallback is required."""
+        if cache is None:
+            return None
+
+        table_l = table.lower()
+        where_l = where_column.lower()
+
+        if table_l == "stations" and where_l == "station_id":
+            source = cache.stations
+        elif table_l == "users" and where_l == "user_id":
+            source = cache.users
+        else:
+            return None
+
+        try:
+            key = int(lookup_value)
+        except (TypeError, ValueError):
+            key = lookup_value
+
+        record = source.get(key)
+        if record is None:
+            # Key not in cache (e.g. unexpected id) -> fall back to DB.
+            return None
+
+        try:
+            values = tuple(record[col.lower()] for col in selected_columns)
+        except KeyError:
+            # Requested a column the cache doesn't track -> fall back to DB.
+            return None
+        return [values]
+
     def _lookup_value(self, event_type, attribute, rule, context):
         from data_generator_engine.db_oracle import get_connection
 
@@ -163,18 +196,26 @@ class SkeletonFiller:
                 f"lookup dependency {lookup_on} must be filled before {event_type}.{attribute}"
             )
 
-        conn = get_connection()
-        cursor = conn.cursor()
-        try:
-            select_columns_sql = ", ".join(selected_columns)
-            cursor.execute(
-                f"SELECT {select_columns_sql} FROM {table} WHERE {where_column} = :1",
-                (lookup_value,),
-            )
-            rows = cursor.fetchall()
-        finally:
-            cursor.close()
-            conn.close()
+        # Fast path: serve Stations/Users lookups from the in-memory cache
+        # instead of opening a connection per lookup.
+        cached_rows = self._lookup_from_cache(
+            context.get("resource_cache"), table, where_column, selected_columns, lookup_value
+        )
+        if cached_rows is not None:
+            rows = cached_rows
+        else:
+            conn = get_connection()
+            cursor = conn.cursor()
+            try:
+                select_columns_sql = ", ".join(selected_columns)
+                cursor.execute(
+                    f"SELECT {select_columns_sql} FROM {table} WHERE {where_column} = :1",
+                    (lookup_value,),
+                )
+                rows = cursor.fetchall()
+            finally:
+                cursor.close()
+                conn.close()
 
         if not rows:
             raise ValueError(
@@ -323,6 +364,64 @@ def _resolve_default_output_path(provided, preferred, fallback):
     return str(preferred) if preferred else fallback
 
 
+def _event_time_key(event):
+    """Return a sort key (sortable_flag, numeric_time) for an Event element.
+
+    Events whose <Time> is missing or non-numeric sort after all numeric
+    ones, preserving their original relative order via a stable sort.
+    """
+    time_elem = event.find("Time")
+    if time_elem is None or time_elem.text is None:
+        return (1, 0.0)
+    text = time_elem.text.strip()
+    try:
+        return (0, float(text))
+    except (TypeError, ValueError):
+        return (1, 0.0)
+
+
+def _direct_event_time_key(event):
+    """Return a sort key (sortable_flag, numeric_time) for direct event nodes."""
+    time_text = event.get("time")
+    if time_text is None:
+        return (1, 0.0)
+    try:
+        return (0, float(time_text))
+    except (TypeError, ValueError):
+        return (1, 0.0)
+
+
+def _sort_events_by_time(root):
+    """Reorder <Event> children of root by <Time>, increasing (stable).
+
+    Non-Event children keep their positions; only the Event nodes are
+    reordered, slotted back into the positions Events originally occupied.
+    """
+    children = list(root)
+    event_positions = [i for i, child in enumerate(children) if child.tag == "Event"]
+    if len(event_positions) <= 1:
+        return
+
+    events = [children[i] for i in event_positions]
+    events.sort(key=_event_time_key)  # stable: ties keep original order
+
+    for slot, event in zip(event_positions, events):
+        children[slot] = event
+
+    root[:] = children
+
+
+def _sort_direct_events_by_time(root):
+    """Reorder direct event children of root by time attribute (stable)."""
+    children = list(root)
+    if len(children) <= 1:
+        return
+
+    events = list(children)
+    events.sort(key=_direct_event_time_key)
+    root[:] = events
+
+
 def main():
     args = parse_args()
     cwd = Path.cwd()
@@ -361,50 +460,122 @@ def main():
     runtime_state = RuntimeState()
     filler = SkeletonFiller(fill_spec, functions, runtime_state)
 
+    from data_generator_engine.db_oracle import ResourceCache, close_pool, get_connection
+
+    # Build the in-memory resource cache once: one connection, read Stations,
+    # Users and Bikes a single time. All availability/capacity/status changes
+    # happen in memory and are flushed back in one batch at the end.
+    resource_cache = ResourceCache(get_connection()).load()
+
+    # get_source_match_fields scans the whole spec; cache it per event type.
+    match_fields_cache = {}
+
     if args.skeletons_in:
         tree = ET.parse(args.skeletons_in)
         root = tree.getroot()
 
         event_nodes = root.findall("Event")
-        total_events = len(event_nodes)
+        if event_nodes:
+            total_events = len(event_nodes)
+            print(f"Filling {total_events} events from {args.skeletons_in}...", flush=True)
+
+            try:
+                for index, event in enumerate(event_nodes, start=1):
+                    if index % 100 == 0 or index == total_events:
+                        print(f"Processed {index}/{total_events} events", flush=True)
+                    event_type_elem = event.find("Type")
+                    if event_type_elem is None or event_type_elem.text is None:
+                        continue
+                    event_type = event_type_elem.text
+                    attributes_elem = event.find("Attributes")
+                    if attributes_elem is None:
+                        continue
+
+                    attr_elems = attributes_elem.findall("Attribute")
+                    attributes = {}
+                    for attr_elem in attr_elems:
+                        name = attr_elem.get("name")
+                        if name is None:
+                            continue
+                        attributes[name] = attr_elem.text
+
+                    context = {
+                        "event_type": event_type,
+                        "attributes": attributes,
+                        "runtime_state": runtime_state,
+                        "resource_cache": resource_cache,
+                    }
+                    filler.fill_event_attributes(event_type, attributes, context)
+
+                    if event_type not in match_fields_cache:
+                        match_fields_cache[event_type] = fill_spec.get_source_match_fields(event_type)
+                    for match_fields in match_fields_cache[event_type]:
+                        runtime_state.record(event_type, attributes, match_fields)
+                    if "session_id" in attributes:
+                        runtime_state.record(event_type, attributes, ["session_id"])
+
+                    for attr_elem in attr_elems:
+                        name = attr_elem.get("name")
+                        if name is None:
+                            continue
+                        if name in attributes:
+                            attr_elem.text = str(attributes[name])
+
+                # Persist all in-memory station/bike state and new users in one
+                # batched flush, then commit once.
+                resource_cache.flush()
+            finally:
+                resource_cache.close()
+                close_pool()
+
+            # Order the filled events by their <Time> value, increasing. Events
+            # without a parseable <Time> are sorted last but keep their relative
+            # order (stable sort). Non-Event children of the root are left in
+            # place.
+            _sort_events_by_time(root)
+
+            Path(args.skeletons_out).parent.mkdir(parents=True, exist_ok=True)
+            tree.write(args.skeletons_out, encoding="utf-8", xml_declaration=True)
+            print(args.skeletons_out)
+            return
+
+        direct_events = [child for child in list(root) if isinstance(child.tag, str)]
+        total_events = len(direct_events)
         print(f"Filling {total_events} events from {args.skeletons_in}...", flush=True)
 
-        for index, event in enumerate(event_nodes, start=1):
-            if index % 100 == 0 or index == total_events:
-                print(f"Processed {index}/{total_events} events", flush=True)
-            event_type_elem = event.find("Type")
-            if event_type_elem is None or event_type_elem.text is None:
-                continue
-            event_type = event_type_elem.text
-            attributes_elem = event.find("Attributes")
-            if attributes_elem is None:
-                continue
+        try:
+            for index, event in enumerate(direct_events, start=1):
+                if index % 100 == 0 or index == total_events:
+                    print(f"Processed {index}/{total_events} events", flush=True)
+                event_type = event.tag
+                attributes = {child.tag: child.text for child in event if isinstance(child.tag, str)}
 
-            attributes = {}
-            for attr_elem in attributes_elem.findall("Attribute"):
-                name = attr_elem.get("name")
-                if name is None:
-                    continue
-                attributes[name] = attr_elem.text
+                context = {
+                    "event_type": event_type,
+                    "attributes": attributes,
+                    "runtime_state": runtime_state,
+                    "resource_cache": resource_cache,
+                }
+                filler.fill_event_attributes(event_type, attributes, context)
 
-            context = {
-                "event_type": event_type,
-                "attributes": attributes,
-                "runtime_state": runtime_state,
-            }
-            filler.fill_event_attributes(event_type, attributes, context)
+                if event_type not in match_fields_cache:
+                    match_fields_cache[event_type] = fill_spec.get_source_match_fields(event_type)
+                for match_fields in match_fields_cache[event_type]:
+                    runtime_state.record(event_type, attributes, match_fields)
+                if "session_id" in attributes:
+                    runtime_state.record(event_type, attributes, ["session_id"])
 
-            for match_fields in fill_spec.get_source_match_fields(event_type):
-                runtime_state.record(event_type, attributes, match_fields)
-            if "session_id" in attributes:
-                runtime_state.record(event_type, attributes, ["session_id"])
+                for child in event:
+                    name = child.tag
+                    if name in attributes:
+                        child.text = str(attributes[name])
 
-            for attr_elem in attributes_elem.findall("Attribute"):
-                name = attr_elem.get("name")
-                if name is None:
-                    continue
-                if name in attributes:
-                    attr_elem.text = str(attributes[name])
+            resource_cache.flush()
+        finally:
+            resource_cache.close()
+            close_pool()
+
+        _sort_direct_events_by_time(root)
 
         Path(args.skeletons_out).parent.mkdir(parents=True, exist_ok=True)
         tree.write(args.skeletons_out, encoding="utf-8", xml_declaration=True)
