@@ -18,13 +18,11 @@ events:
     station_id:
       category: select
       function_name: choose_station
-      # choose_station picks uniformly among stations with bikes_available > 0.
-      # We treat the expected distribution as uniform over the 15 station_ids.
       distribution:
         type: uniform_over_column
         table: Stations
         column: station_id
-        tolerance: 0.10  # only 250 RentBike events / 15 stations -> ~17 each, expect noise
+        tolerance: 0.10
     station_name:
       category: lookup
       params:
