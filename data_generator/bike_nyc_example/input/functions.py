@@ -7,11 +7,11 @@ def choose_or_generate_user(context, probability_new=0.2):
 	if cache is None:
 		raise RuntimeError("resource_cache is required in context")
 
-	# Preserve original NYC RNG order: draw first, then decide reuse vs. new.
-	if random.random() >= probability_new:
-		existing_ids = list(cache.users.keys())
-		if existing_ids:
-			return random.choice(existing_ids)
+	existing_ids = list(cache.users.keys())
+
+	# Preserve original RNG call order: draw once to decide existing vs new.
+	if existing_ids and random.random() >= probability_new:
+		return random.choice(existing_ids)
 
 	new_user_id, new_id = cache.next_user_ids()
 	faker = Faker()
@@ -93,12 +93,12 @@ def choose_available_bike(context):
 	return selected_bike_id
 
 
-def generate_report_location(context, max_miles=40, nyc_bounds=None, attempts=10):
+def generate_report_location(context, max_miles=10, sf_bounds=None, attempts=10):
 	import math
 	import random
 
-	if nyc_bounds is None:
-		nyc_bounds = (-74.25909, -73.70018, 40.477399, 40.917577)
+	if sf_bounds is None:
+		sf_bounds = (-122.55, -121.80, 37.25, 37.95)
 
 	def parse_location(value):
 		if value is None:
@@ -162,7 +162,7 @@ def generate_report_location(context, max_miles=40, nyc_bounds=None, attempts=10
 		)
 		return math.degrees(lon2), math.degrees(lat2)
 
-	lon_min, lon_max, lat_min, lat_max = nyc_bounds
+	lon_min, lon_max, lat_min, lat_max = sf_bounds
 	for _ in range(int(attempts)):
 		distance = random.random() * max_distance
 		bearing = random.random() * 2 * math.pi
@@ -173,7 +173,7 @@ def generate_report_location(context, max_miles=40, nyc_bounds=None, attempts=10
 	return (round(lon0, 6), round(lat0, 6))
 
 
-def choose_return_station(context, max_miles=40, nyc_bounds=None):
+def choose_return_station(context, max_miles=10, sf_bounds=None):
 	import math
 	import random
 
@@ -181,8 +181,8 @@ def choose_return_station(context, max_miles=40, nyc_bounds=None):
 	if cache is None:
 		raise RuntimeError("resource_cache is required in context")
 
-	if nyc_bounds is None:
-		nyc_bounds = (-74.25909, -73.70018, 40.477399, 40.917577)
+	if sf_bounds is None:
+		sf_bounds = (-122.55, -121.80, 37.25, 37.95)
 
 	def parse_location(value):
 		if value is None:
@@ -230,13 +230,23 @@ def choose_return_station(context, max_miles=40, nyc_bounds=None):
 			)
 		except KeyError:
 			last_location = None
+		# A session may legitimately have no ReportLocation (rent then return
+		# with no location reports). In that case the bike is still at its
+		# pickup station, so fall back to the RentBike's recorded location.
+		if last_location is None:
+			try:
+				last_location = runtime_state.lookup(
+					"RentBike", ["session_id"], match_key, "location_data"
+				)
+			except KeyError:
+				last_location = None
 
 	if last_location is None:
 		last_location = attributes.get("location_data")
 
 	last_coords = parse_location(last_location)
 	if last_coords is None:
-		raise KeyError("last ReportLocation location_data is required before ReturnBike station selection")
+		raise KeyError("location_data is required before ReturnBike station selection (no ReportLocation or RentBike location found for this session)")
 
 	lon0, lat0 = last_coords
 
@@ -252,7 +262,7 @@ def choose_return_station(context, max_miles=40, nyc_bounds=None):
 	if max_distance <= 0:
 		raise ValueError("max_miles must be positive")
 
-	lon_min, lon_max, lat_min, lat_max = nyc_bounds
+	lon_min, lon_max, lat_min, lat_max = sf_bounds
 	candidates = []
 	for station_id, lon, lat in rows:
 		if lon is None or lat is None:
@@ -264,12 +274,11 @@ def choose_return_station(context, max_miles=40, nyc_bounds=None):
 			candidates.append(station_id)
 
 	if not candidates:
-		fallback_ids = [row[0] for row in rows if row[0] is not None]
-		if not fallback_ids:
+		candidates = [row[0] for row in rows]
+		if not candidates:
 			raise ValueError("No stations within range of last ReportLocation")
-		selected_station_id = random.choice(fallback_ids)
-	else:
-		selected_station_id = random.choice(candidates)
+
+	selected_station_id = random.choice(candidates)
 
 	# Mutate bike + station state in memory; flushed in one batch later.
 	if bike_id in cache.bikes:
