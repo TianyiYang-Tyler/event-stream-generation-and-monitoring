@@ -66,9 +66,6 @@ events:
       function_name: choose_available_bike
       depends_on:
         - station_id
-      # choose_available_bike picks uniformly among available bikes at the
-      # chosen station. Marginal expected distribution over all bike_ids is
-      # roughly uniform over the seeded bikes (2001..2065).
       distribution:
         type: uniform_over_column
         table: Bikes
@@ -97,8 +94,6 @@ events:
         max_miles: 5
       depends_on:
         - session_id
-      # location_data here is a (lon, lat) pair — not a categorical value —
-      # so we don't specify a categorical distribution.
   ReturnBike:
     station_id:
       category: generate
@@ -108,9 +103,6 @@ events:
       depends_on:
         - session_id
         - bike_id
-      # choose_return_station filters to stations within max_miles of the
-      # last ReportLocation, then picks uniformly. The marginal expected
-      # distribution is roughly uniform over the 15 stations.
       distribution:
         type: uniform_over_column
         table: Stations
