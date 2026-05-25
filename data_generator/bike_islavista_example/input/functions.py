@@ -1,4 +1,4 @@
-def choose_or_generate_user(context, probability_new=0.2):
+def choose_or_generate_user(context, probability_new=0.2, seeded_max_user_id=None):
 	import random
 
 	from faker import Faker
@@ -7,11 +7,30 @@ def choose_or_generate_user(context, probability_new=0.2):
 	if cache is None:
 		raise RuntimeError("resource_cache is required in context")
 
-	existing_ids = list(cache.users.keys())
+	# "Existing" means a user that was seeded in the database. New users created
+	# during the run must NOT count as existing, or the seeded/new ratio drifts
+	# (the "existing" pool would grow with every new user we mint).
+	#
+	# The seeded pool is captured ONCE, on the first call, by snapshotting the
+	# user_ids currently in the cache. At that point no new users have been
+	# minted yet (this function is what mints them), so the snapshot is exactly
+	# the seeded set. This is robust: it does not depend on a hardcoded
+	# threshold that can silently drift when USERS_COUNT changes.
+	#
+	# If seeded_max_user_id is explicitly provided, it is still honored as an
+	# upper bound (useful if you want to cap the seeded set deliberately).
+	seeded_ids = getattr(cache, "_seeded_user_ids_cache", None)
+	if seeded_ids is None:
+		seeded_ids = [
+			uid for uid in cache.users.keys()
+			if uid is not None
+			and (seeded_max_user_id is None or uid <= seeded_max_user_id)
+		]
+		cache._seeded_user_ids_cache = seeded_ids
 
 	# Preserve original RNG call order: draw once to decide existing vs new.
-	if existing_ids and random.random() >= probability_new:
-		return random.choice(existing_ids)
+	if seeded_ids and random.random() >= probability_new:
+		return random.choice(seeded_ids)
 
 	new_user_id, new_id = cache.next_user_ids()
 	faker = Faker()
@@ -230,6 +249,9 @@ def choose_return_station(context, max_miles=5, iv_bounds=None):
 			)
 		except KeyError:
 			last_location = None
+		# A session may legitimately have no ReportLocation (rent then return
+		# with no location reports). In that case the bike is still at its
+		# pickup station, so fall back to the RentBike's recorded location.
 		if last_location is None:
 			try:
 				last_location = runtime_state.lookup(
@@ -243,7 +265,7 @@ def choose_return_station(context, max_miles=5, iv_bounds=None):
 
 	last_coords = parse_location(last_location)
 	if last_coords is None:
-		raise KeyError("last ReportLocation location_data is required before ReturnBike station selection")
+		raise KeyError("location_data is required before ReturnBike station selection (no ReportLocation or RentBike location found for this session)")
 
 	lon0, lat0 = last_coords
 

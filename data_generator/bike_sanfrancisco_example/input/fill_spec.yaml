@@ -5,6 +5,7 @@ events:
       function_name: choose_or_generate_user
       params:
         probability_new: 0.2
+        seeded_max_user_id: 76000
       distribution:
         type: categorical
         values:
@@ -12,7 +13,7 @@ events:
           new: 0.2
         bucket_by:
           kind: db_membership
-          seeded_max_user_id: 4000
+          seeded_max_user_id: 76000
         tolerance: 0.08
     station_id:
       category: select
@@ -103,10 +104,14 @@ events:
         - session_id
         - bike_id
       distribution:
-        type: uniform_over_column
+        # ReturnBike stations are chosen by choose_return_station within
+        # max_miles of the trip's last location and with available capacity, so
+        # the result is intentionally distance-constrained, NOT uniform. A
+        # uniform target here is the wrong expectation and will always fail.
+        type: distance_constrained
         table: Stations
         column: station_id
-        tolerance: 0.10
+        note: clustering near trip endpoints is expected behavior
     station_name:
       category: lookup
       params:

@@ -5,6 +5,7 @@ events:
       function_name: choose_or_generate_user
       params:
         probability_new: 0.2
+        seeded_max_user_id: 201000
       distribution:
         type: categorical
         values:
@@ -12,7 +13,7 @@ events:
           new: 0.2
         bucket_by:
           kind: db_membership
-          seeded_max_user_id: 11000
+          seeded_max_user_id: 201000
         tolerance: 0.08
     station_id:
       category: select
