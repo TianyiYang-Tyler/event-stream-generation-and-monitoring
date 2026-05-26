@@ -56,6 +56,10 @@ class FillSpec:
         events = self._spec.get("events", {})
         return events.get(event_type, {}) or {}
 
+    def resources(self):
+        """Return the `resources` block (table schema for the cache), or {}."""
+        return self._spec.get("resources", {}) or {}
+
     def get_source_match_fields(self, event_type):
         events = self._spec.get("events", {})
         match_fields = []
@@ -248,11 +252,17 @@ class SkeletonFiller:
         table_l = table.lower()
         where_l = where_column.lower()
 
-        if table_l == "stations" and where_l == "station_id":
-            source = cache.stations
-        elif table_l == "users" and where_l == "user_id":
-            source = cache.users
-        else:
+        # Resolve the table generically by matching the configured table name
+        # (case-insensitive) against what the cache loaded. The lookup is only
+        # served from cache when the where_column is that table's primary key;
+        # otherwise fall back to the DB path.
+        source = None
+        specs = getattr(cache, "_specs", {}) or {}
+        for tname, spec in specs.items():
+            if tname.lower() == table_l and where_l == str(spec.primary_key).lower():
+                source = cache.table(tname)
+                break
+        if source is None:
             return None
 
         try:
@@ -266,7 +276,9 @@ class SkeletonFiller:
             return None
 
         try:
-            values = tuple(record[col.lower()] for col in selected_columns)
+            # Case-insensitive column match against the cached row.
+            lower_map = {k.lower(): v for k, v in record.items()}
+            values = tuple(lower_map[col.lower()] for col in selected_columns)
         except KeyError:
             # Requested a column the cache doesn't track -> fall back to DB.
             return None
@@ -374,6 +386,11 @@ class SkeletonFiller:
             return fn(context, **params)
 
         if category == "dependent_select":
+            fn = self._functions.get(rule["function_name"])
+            params = rule.get("params", {})
+            return fn(context, **params)
+
+        if category == "dependent_generate":
             fn = self._functions.get(rule["function_name"])
             params = rule.get("params", {})
             return fn(context, **params)
@@ -803,7 +820,7 @@ def main():
     # Build the in-memory resource cache once: one connection, read Stations,
     # Users and Bikes a single time. All availability/capacity/status changes
     # happen in memory and are flushed back in one batch at the end.
-    resource_cache = ResourceCache(get_connection()).load()
+    resource_cache = ResourceCache(get_connection(), schema=fill_spec.resources()).load()
 
     # get_source_match_fields scans the whole spec; cache it per event type.
     match_fields_cache = {}

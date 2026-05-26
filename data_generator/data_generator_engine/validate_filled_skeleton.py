@@ -135,33 +135,55 @@ def main():
 	warnings = []
 	event_count = 0
 
-	for event in root.findall("Event"):
-		event_type_elem = event.find("Type")
-		if event_type_elem is None or event_type_elem.text is None:
-			warnings.append("Event missing Type")
-			continue
-		event_type = event_type_elem.text
-		if event_type == "END":
-			continue
-
-		attributes_elem = event.find("Attributes")
-		if attributes_elem is None:
-			warnings.append(f"{event_type}: missing Attributes")
-			continue
-
-		attributes = {}
-		for attr_elem in attributes_elem.findall("Attribute"):
-			name = attr_elem.get("name")
-			if name is None:
+	legacy_events = root.findall("Event")
+	if legacy_events:
+		for event in legacy_events:
+			event_type_elem = event.find("Type")
+			if event_type_elem is None or event_type_elem.text is None:
+				warnings.append("Event missing Type")
 				continue
-			attributes[name] = attr_elem.text
+			event_type = event_type_elem.text
+			if event_type == "END":
+				continue
 
-		validate_event(event_type, attributes, fill_spec, runtime_state, bounds, errors, warnings)
+			attributes_elem = event.find("Attributes")
+			if attributes_elem is None:
+				warnings.append(f"{event_type}: missing Attributes")
+				continue
 
-		for match_fields in fill_spec.get_source_match_fields(event_type):
-			runtime_state.record(event_type, attributes, match_fields)
+			attributes = {}
+			for attr_elem in attributes_elem.findall("Attribute"):
+				name = attr_elem.get("name")
+				if name is None:
+					continue
+				attributes[name] = attr_elem.text
 
-		event_count += 1
+			validate_event(event_type, attributes, fill_spec, runtime_state, bounds, errors, warnings)
+
+			for match_fields in fill_spec.get_source_match_fields(event_type):
+				runtime_state.record(event_type, attributes, match_fields)
+
+			event_count += 1
+	else:
+		for event in list(root):
+			if not isinstance(event.tag, str):
+				continue
+			event_type = event.tag
+			if event_type == "END":
+				continue
+
+			attributes = {}
+			for attr_elem in event:
+				if not isinstance(attr_elem.tag, str):
+					continue
+				attributes[attr_elem.tag] = attr_elem.text
+
+			validate_event(event_type, attributes, fill_spec, runtime_state, bounds, errors, warnings)
+
+			for match_fields in fill_spec.get_source_match_fields(event_type):
+				runtime_state.record(event_type, attributes, match_fields)
+
+			event_count += 1
 
 	print(f"Validated {event_count} events")
 	print(f"Errors: {len(errors)}")

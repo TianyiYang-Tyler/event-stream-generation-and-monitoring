@@ -1,4 +1,4 @@
-def choose_or_generate_user(context, probability_new=0.2):
+def choose_or_generate_user(context, probability_new=0.2, seeded_max_user_id=None):
 	import random
 
 	from faker import Faker
@@ -7,13 +7,32 @@ def choose_or_generate_user(context, probability_new=0.2):
 	if cache is None:
 		raise RuntimeError("resource_cache is required in context")
 
-	existing_ids = list(cache.users.keys())
+	# "Existing" means a user that was seeded in the database. New users created
+	# during the run must NOT count as existing, or the seeded/new ratio drifts
+	# (the "existing" pool would grow with every new user we mint).
+	#
+	# The seeded pool is captured ONCE, on the first call, by snapshotting the
+	# user_ids currently in the cache. At that point no new users have been
+	# minted yet (this function is what mints them), so the snapshot is exactly
+	# the seeded set. This is robust: it does not depend on a hardcoded
+	# threshold that can silently drift when USERS_COUNT changes.
+	#
+	# If seeded_max_user_id is explicitly provided, it is still honored as an
+	# upper bound (useful if you want to cap the seeded set deliberately).
+	seeded_ids = getattr(cache, "_seeded_user_ids_cache", None)
+	if seeded_ids is None:
+		seeded_ids = [
+			uid for uid in cache.table("Users").keys()
+			if uid is not None
+			and (seeded_max_user_id is None or uid <= seeded_max_user_id)
+		]
+		cache._seeded_user_ids_cache = seeded_ids
 
 	# Preserve original RNG call order: draw once to decide existing vs new.
-	if existing_ids and random.random() >= probability_new:
-		return random.choice(existing_ids)
+	if seeded_ids and random.random() >= probability_new:
+		return random.choice(seeded_ids)
 
-	new_user_id, new_id = cache.next_user_ids()
+	new_user_id, new_id = cache.next_ids("Users")
 	faker = Faker()
 	first_name = faker.first_name()
 	last_name = faker.last_name()
@@ -22,20 +41,16 @@ def choose_or_generate_user(context, probability_new=0.2):
 	credit_card_num = faker.credit_card_number()
 	is_member = 1 if faker.boolean() else 0
 
-	cache.add_user(
-		(
-			new_id,
-			new_user_id,
-			first_name,
-			last_name,
-			email,
-			phone,
-			credit_card_num,
-			is_member,
-		),
-		is_member=is_member,
-		credit_card_num=credit_card_num,
-	)
+	cache.add_row("Users", {
+		"id": new_id,
+		"user_id": new_user_id,
+		"first_name": first_name,
+		"last_name": last_name,
+		"email": email,
+		"phone": phone,
+		"credit_card_num": credit_card_num,
+		"is_member": is_member,
+	})
 	return new_user_id
 
 
@@ -48,7 +63,7 @@ def choose_station(context):
 
 	station_ids = [
 		sid
-		for sid, station in cache.stations.items()
+		for sid, station in cache.table("Stations").items()
 		if (station.get("bikes_available") or 0) > 0
 	]
 	if not station_ids:
@@ -73,7 +88,7 @@ def choose_available_bike(context):
 
 	bike_ids = [
 		bid
-		for bid, bike in cache.bikes.items()
+		for bid, bike in cache.table("Bikes").items()
 		if bike.get("station_id") == station_id and bike.get("status") == "available"
 	]
 	if not bike_ids:
@@ -82,23 +97,24 @@ def choose_available_bike(context):
 	selected_bike_id = random.choice(bike_ids)
 
 	# Mutate bike + station availability in memory; flushed in one batch later.
-	cache.bikes[selected_bike_id]["status"] = "rented"
-	cache.mark_bike_dirty(selected_bike_id)
+	cache.table("Bikes")[selected_bike_id]["status"] = "rented"
+	cache.mark_dirty("Bikes", selected_bike_id)
 
-	station = cache.stations[station_id]
+	station = cache.table("Stations")[station_id]
 	station["bikes_available"] = (station.get("bikes_available") or 0) - 1
 	station["capacity_available"] = (station.get("capacity_available") or 0) + 1
-	cache.mark_station_dirty(station_id)
+	cache.mark_dirty("Stations", station_id)
 
 	return selected_bike_id
 
 
-def generate_report_location(context, max_miles=10, sf_bounds=None, attempts=10):
+def generate_report_location(context, max_miles=10, bounds=None, attempts=10):
 	import math
 	import random
 
-	if sf_bounds is None:
-		sf_bounds = (-122.55, -121.80, 37.25, 37.95)
+	if bounds is None:
+		bounds = (-74.25909, -73.70018, 40.477399, 40.917577)
+	bounds = tuple(bounds)
 
 	def parse_location(value):
 		if value is None:
@@ -162,7 +178,7 @@ def generate_report_location(context, max_miles=10, sf_bounds=None, attempts=10)
 		)
 		return math.degrees(lon2), math.degrees(lat2)
 
-	lon_min, lon_max, lat_min, lat_max = sf_bounds
+	lon_min, lon_max, lat_min, lat_max = bounds
 	for _ in range(int(attempts)):
 		distance = random.random() * max_distance
 		bearing = random.random() * 2 * math.pi
@@ -173,7 +189,7 @@ def generate_report_location(context, max_miles=10, sf_bounds=None, attempts=10)
 	return (round(lon0, 6), round(lat0, 6))
 
 
-def choose_return_station(context, max_miles=10, sf_bounds=None):
+def choose_return_station(context, max_miles=10, bounds=None):
 	import math
 	import random
 
@@ -181,8 +197,9 @@ def choose_return_station(context, max_miles=10, sf_bounds=None):
 	if cache is None:
 		raise RuntimeError("resource_cache is required in context")
 
-	if sf_bounds is None:
-		sf_bounds = (-122.55, -121.80, 37.25, 37.95)
+	if bounds is None:
+		bounds = (-74.25909, -73.70018, 40.477399, 40.917577)
+	bounds = tuple(bounds)
 
 	def parse_location(value):
 		if value is None:
@@ -252,7 +269,7 @@ def choose_return_station(context, max_miles=10, sf_bounds=None):
 
 	rows = [
 		(sid, station.get("longitude"), station.get("latitude"))
-		for sid, station in cache.stations.items()
+		for sid, station in cache.table("Stations").items()
 		if (station.get("capacity_available") or 0) > 0
 	]
 	if not rows:
@@ -262,7 +279,7 @@ def choose_return_station(context, max_miles=10, sf_bounds=None):
 	if max_distance <= 0:
 		raise ValueError("max_miles must be positive")
 
-	lon_min, lon_max, lat_min, lat_max = sf_bounds
+	lon_min, lon_max, lat_min, lat_max = bounds
 	candidates = []
 	for station_id, lon, lat in rows:
 		if lon is None or lat is None:
@@ -281,14 +298,14 @@ def choose_return_station(context, max_miles=10, sf_bounds=None):
 	selected_station_id = random.choice(candidates)
 
 	# Mutate bike + station state in memory; flushed in one batch later.
-	if bike_id in cache.bikes:
-		cache.bikes[bike_id]["station_id"] = selected_station_id
-		cache.bikes[bike_id]["status"] = "available"
-		cache.mark_bike_dirty(bike_id)
+	if bike_id in cache.table("Bikes"):
+		cache.table("Bikes")[bike_id]["station_id"] = selected_station_id
+		cache.table("Bikes")[bike_id]["status"] = "available"
+		cache.mark_dirty("Bikes", bike_id)
 
-	station = cache.stations[selected_station_id]
+	station = cache.table("Stations")[selected_station_id]
 	station["bikes_available"] = (station.get("bikes_available") or 0) + 1
 	station["capacity_available"] = (station.get("capacity_available") or 0) - 1
-	cache.mark_station_dirty(selected_station_id)
+	cache.mark_dirty("Stations", selected_station_id)
 
 	return selected_station_id
