@@ -1,0 +1,201 @@
+resources:
+  tables:
+    Users:
+      primary_key: user_id
+      pk_column: id
+      columns:
+        - user_id
+        - id
+        - first_name
+        - last_name
+        - email
+        - phone
+        - address
+        - credit_card_num
+      insertable: true
+      id_sequence: true
+      where: user_id IS NOT NULL
+
+    Products:
+      primary_key: id
+      pk_column: id
+      columns:
+        - id
+        - name
+        - stock
+        - category
+      insertable: false
+      mutable_columns:
+        - stock
+      where: stock > 0
+
+    Warehouses:
+      primary_key: warehouse_id
+      pk_column: id
+      columns:
+        - id
+        - warehouse_id
+        - location
+      insertable: false
+      where: id IS NOT NULL
+
+events:
+  Order:
+    user_id:
+      category: generate
+      function_name: choose_or_generate_user_60_40
+      params:
+        probability_new: 0.4
+        seeded_max_user_id: 20000
+
+    item_id:
+      category: dependent_select
+      function_name: choose_university_item_in_stock
+      params: {}
+
+    shipping_location:
+      category: lookup
+      params:
+        table: Users
+        lookup_on: user_id
+        where_column: user_id
+        value_column: address
+      depends_on:
+        - user_id
+
+    order_details:
+      category: dependent_generate
+      function_name: construct_order_details
+      params: {}
+
+  Confirm_payment:
+    user_id:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    shipping_location:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    order_details:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    credit_card_num:
+      category: dependent_generate
+      function_name: get_user_credit_card
+      params: {}
+      depends_on:
+        - user_id
+
+  AddItem:
+    user_id:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    item_id:
+      category: dependent_select
+      function_name: choose_university_item_in_stock
+      params: {}
+
+  Ship:
+    user_id:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    shipping_location:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    order_details:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+  Confirm_arrival:
+    user_id:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    shipping_location:
+      category: dependent_generate
+      function_name: generate_warehouse_location
+      params: {}
+
+    order_details:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+  Delivery_out:
+    user_id:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    delivery_location:
+      category: copy
+      source_event: Order
+      source_attribute: shipping_location
+      match_on: order_id
+
+    order_details:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+  Confirm_delivery:
+    user_id:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    order_details:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+  Rate_order:
+    user_id:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    order_details:
+      category: copy
+      source_event: Order
+      match_on: order_id
+
+    customer_comment:
+      category: dependent_generate
+      function_name: generate_customer_comment
+      params: {}
+      depends_on:
+        - customer_rating
+
+    customer_rating:
+      category: dependent_generate
+      function_name: generate_weighted_rating
+      params:
+        distribution:
+          5: 0.50
+          4: 0.25
+          3: 0.15
+          2: 0.07
+          1: 0.03
+      distribution:
+        type: categorical
+        values:
+          5: 0.50
+          4: 0.25
+          3: 0.15
+          2: 0.07
+          1: 0.03
+        tolerance: 0.05
