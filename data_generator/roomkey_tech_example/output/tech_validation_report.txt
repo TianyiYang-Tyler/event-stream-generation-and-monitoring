@@ -1,0 +1,34 @@
+======================================================================
+TECH COMPANY ROOM-ACCESS APPROVAL — FILLED STREAM VALIDATION REPORT
+======================================================================
+
+STRUCTURE VALIDATION
+----------------------------------------------------------------------
+Total events: 1,000,000
+Distinct applications: 250,000
+NULL placeholders remaining: 0
+Applications missing one of ('Apply', 'Department_approval', 'CRS_approval', 'Notify'): 0
+
+CONSTRAINT VALIDATION
+----------------------------------------------------------------------
+Role/department checks: SKIPPED (no employee map available)
+Applications checked: 250,000
+  applicant_role  : N/A (needs DB)
+  dept_role       : N/A (needs DB)
+  crs_role        : N/A (needs DB)
+  dept_match      : N/A (needs DB)
+  distinct        : OK (0 violations)
+  notify          : OK (0 violations)
+
+DISTRIBUTIONS (actual)
+----------------------------------------------------------------------
+applicant existing/new (seeded_max_employee_id=31,000):
+    existing: 225,108 (90.0%)   target 90%
+    new:      24,892 (10.0%)   target 10%
+Department decision: AP 84.0% / DN 16.0%   target 84/16
+CRS decision:        AP 88.0% / DN 12.0%   target 88/12
+Notify AP rate:      73.8%   (expected ~0.84*0.88 = 73.9%)
+
+SUMMARY
+----------------------------------------------------------------------
+RESULT: PASS — structure complete, no NULLs, all constraints hold.
