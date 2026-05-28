@@ -12,14 +12,11 @@ skeletons_filled.xml in the example's output folder.
 ```
 data_generator/
 |-- data_generator_engine/
-|   |-- .DS_Store
 |   |-- Wallet_resources/
 |   |-- __init__.py
-|   |-- __pycache__/
 |   |-- db_oracle.py
 |   |-- generator.py
-|   |-- validate_distributions.py
-|   `-- validate_filled_skeleton.py
+|   `-- sort_by_time.py
 |-- bike_islavista_example/
 |   |-- input/
 |   |   |-- DATA_GENERATOR_SPECIFICATION.txt
@@ -29,6 +26,7 @@ data_generator/
 |   |   |-- resources.py
 |   |   `-- skeletons.xml
 |   `-- output/
+|       `-- iv_validation_report.txt
 |-- bike_sanfrancisco_example/
 |   |-- input/
 |   |   |-- DATA_GENERATOR_SPECIFICATION.txt
@@ -38,6 +36,7 @@ data_generator/
 |   |   |-- resources.py
 |   |   `-- skeletons.xml
 |   `-- output/
+|       `-- sf_validation_report.txt
 |-- bike_nyc_example/
 |   |-- input/
 |   |   |-- DATA_GENERATOR_SPECIFICATION.txt
@@ -47,6 +46,7 @@ data_generator/
 |   |   |-- resources.py
 |   |   `-- skeletons.xml
 |   `-- output/
+|       `-- sf_validation_report.txt
 ```
 
 - data_generator_engine/
