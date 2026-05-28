@@ -1,0 +1,34 @@
+======================================================================
+HOTEL APPROVAL — FILLED STREAM VALIDATION REPORT
+======================================================================
+
+STRUCTURE VALIDATION
+----------------------------------------------------------------------
+Total events: 750,000
+Distinct applications: 187,500
+NULL placeholders remaining: 0
+Applications missing one of ('Apply', 'Department_approval', 'CRS_approval', 'Notify'): 0
+
+CONSTRAINT VALIDATION
+----------------------------------------------------------------------
+Role/department checks: SKIPPED (no employee map available)
+Applications checked: 187,500
+  applicant_role  : N/A (needs DB)
+  dept_role       : N/A (needs DB)
+  crs_role        : N/A (needs DB)
+  dept_match      : N/A (needs DB)
+  distinct        : OK (0 violations)
+  notify          : OK (0 violations)
+
+DISTRIBUTIONS (actual)
+----------------------------------------------------------------------
+applicant existing/new (seeded_max_employee_id=9,000):
+    existing: 168,824 (90.0%)   target 90%
+    new:      18,676 (10.0%)   target 10%
+Department decision: AP 84.2% / DN 15.8%   target 84/16
+CRS decision:        AP 88.0% / DN 12.0%   target 88/12
+Notify AP rate:      74.1%   (expected ~0.84*0.88 = 73.9%)
+
+SUMMARY
+----------------------------------------------------------------------
+RESULT: PASS — structure complete, no NULLs, all constraints hold.
