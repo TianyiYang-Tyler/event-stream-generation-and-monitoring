@@ -1,6 +1,7 @@
 import ply.yacc as yacc
 from cepalex import tokens
 import xmltodict
+import sys
 
 start = 'cepal_construct'
 
@@ -454,7 +455,7 @@ def p_termination_rule(p):
                      | TERMINATE ID SEMICOLON event_list
     '''
     p[0] = {
-        "source_events": p[1],
+        "source_events": p[2],
         "type": "TERMINATE",
         "target_event": "ALL" if len(p) == 3 else p[4]
     }
@@ -468,7 +469,7 @@ def p_event_distributions(p):
     '''
     event_distributions : count_distribution event_distributions
                         | time_distribution event_distributions
-                        | timecount_distribution event_distributions
+                        | start_distribution event_distributions
                         | END
     '''
     if len(p) == 2:
@@ -499,15 +500,15 @@ def p_count_distribution(p):
         "distribution": p[7]
     }
 
-def p_timecount_distribution(p):
+def p_start_distribution(p):
     '''
-    timecount_distribution : CREATE TIMECOUNT DISTRIBUTION FOR ID LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
+    start_distribution : CREATE DISTRIBUTION FOR START LPAREN BASE_TIME_GRANULARITY EQ time_val COMMA distribution_list RPAREN
     '''
     p[0] = {
-        "type": "timecount_distribution",
-        "rule_id": p[5],
-        "base_time_granularity_value": p[9],
-        "distribution": p[11]
+        "type": "start_distribution",
+        "rule_id": "START",
+        "base_time_granularity_value": p[8],
+        "distribution": p[10]
     }
 
 def p_distribution_list(p):
@@ -523,7 +524,7 @@ def p_distribution_list(p):
 
 def p_distribution(p):
     '''
-    distribution : distribution_range COLON NUMBER
+    distribution : distribution_range COLON val
     '''
     p[0] = {
         "distribution_range": p[1],
@@ -540,6 +541,12 @@ def p_distribution_range(p):
         "end": p[4]
     }
 
+def p_val(p):
+    """
+    val     : NUMBER
+            | FLOAT
+    """
+    p[0] = p[1]
 
 # =========================
 # Empty + Error
@@ -557,9 +564,11 @@ def p_error(p):
 parser = yacc.yacc()
 
 result = ''
-with open("sample_data/bike_rental.txt") as f:
+fn = sys.argv[1]
+with open(f"sample_data/{fn}.txt") as f:
     result = parser.parse(f.read())
 
+print(result)
 data = {'root': result}
-with open("output_xml/bike_rental_info.xml", "w") as file:
+with open(f"output_xml/{fn}_info.xml", "w") as file:
     xmltodict.unparse(data, output=file, pretty=True)

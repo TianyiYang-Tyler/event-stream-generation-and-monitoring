@@ -198,10 +198,10 @@
 		<attributes>
 			<attribute_name>bike_id</attribute_name>
 			<attribute_type>
-				<type>table_reference</type>
-				<table_name>RentBike</table_name>
-				<table_values>bike_id</table_values>
-				<is_foreign_key>false</is_foreign_key>
+				<type>event_reference</type>
+				<event_name>RentBike</event_name>
+				<event_values>bike_id</event_values>
+				<is_foreign_key>true</is_foreign_key>
 			</attribute_type>
 		</attributes>
 		<attributes>
@@ -307,13 +307,13 @@
 		</target_event>
 	</process_schema>
 	<process_schema>
-		<source_events>TERMINATE</source_events>
+		<source_events>ReturnBike</source_events>
 		<type>TERMINATE</type>
 		<target_event>ALL</target_event>
 	</process_schema>
 	<event_distributions>
-		<type>timecount_distribution</type>
-		<rule_id>E0</rule_id>
+		<type>start_distribution</type>
+		<rule_id>START</rule_id>
 		<base_time_granularity_value>
 			<value>1</value>
 			<unit>HOUR</unit>

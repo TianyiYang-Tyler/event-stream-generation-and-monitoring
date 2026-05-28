@@ -60,7 +60,8 @@ reserved = {
 	'sec'			: 'SECOND',
 	'day'			: 'DAY',
 	'TIMECOUNT'		: 'TIMECOUNT',
-	'AUTO_INCREMENT': 'AUTO_INCREMENT'
+	'AUTO_INCREMENT': 'AUTO_INCREMENT',
+	'START'			: 'START'
 }
 
 tokens = [
@@ -104,9 +105,14 @@ t_MINUS	  = r'-'
 t_LSPAREN = r'\['
 t_RSPAREN = r'\]'
 # A regular expression rule with some action code
+def t_FLOAT(t):
+    r'\d+\.\d+'
+    t.value = float(t.value)
+    return t
+
 def t_NUMBER(t):
     r'\d+'
-    t.value = int(t.value)    
+    t.value = int(t.value)
     return t
 
 def t_ID(t):
