@@ -1,0 +1,79 @@
+================================================================================
+ROOMKEY HOTEL - DATA GENERATOR SPECIFICATION
+================================================================================
+
+Compact, high-level generator spec combining EventType-style attribute mapping
+with an explicit Experimental Parameters section for running controlled tests.
+
+GLOBAL
+    BASE_TIME_GRANULARITY = 1 MINUTE
+    SEED = 42
+    SCHEMA = appuser
+    DROP_EXISTING = True
+    TIME_RANGE = from skeletons.xml
+
+RESOURCES
+    Employees = 8,000 (seeded), Departments = 8 divisions
+    Role coverage: FrontDesk 8/division, Managers 120, rest Guests
+    Functions = choose_or_generate_employee, generate_application_details,
+                generate_department_decision, generate_department_comment,
+                generate_crs_decision, generate_crs_comment,
+                generate_notification_decision
+
+ENTITY TYPES
+    Employees: seeded staff and guests by hotel division
+    Departments: hotel divisions
+
+GENERATION TYPES (glossary)
+    GENERATE: call a function to create a value (params allowed)
+    SELECT: choose from a population (table/column)
+    DEPENDENT_SELECT: selection depending on another attribute
+    LOOKUP: read values from a related table (foreign-key style)
+    COPY: reuse values from a source event matched by a key
+
+ATTRIBUTE MAPPING
+    Apply.employee_id -> GENERATE(choose_or_generate_employee,
+                                probability_new=0.10,
+                                seeded_max_employee_id=9000)
+    Apply.application_details -> DEPENDENT_GENERATE(generate_application_details)
+
+    Department_approval.employee_id -> GENERATE(choose_or_generate_employee,
+                                probability_new=0.10,
+                                seeded_max_employee_id=9000)
+                                DEPENDS_ON application_id
+    Department_approval.decision -> DEPENDENT_GENERATE(generate_department_decision)
+    Department_approval.comment -> DEPENDENT_GENERATE(generate_department_comment)
+
+    CRS_approval.employee_id -> GENERATE(choose_or_generate_employee,
+                                probability_new=0.10,
+                                seeded_max_employee_id=9000)
+                                DEPENDS_ON application_id
+    CRS_approval.decision -> DEPENDENT_GENERATE(generate_crs_decision)
+    CRS_approval.comment -> DEPENDENT_GENERATE(generate_crs_comment)
+
+    Notify.employee_id -> COPY(Apply.employee_id) MATCH_ON application_id
+    Notify.dept_decision -> COPY(Department_approval.decision) MATCH_ON application_id
+    Notify.crs_decision -> COPY(CRS_approval.decision) MATCH_ON application_id
+    Notify.decision -> DEPENDENT_GENERATE(generate_notification_decision)
+
+DISTRIBUTIONS (summary)
+    Employees.employee_id -> CATEGORICAL {existing:0.90, new:0.10}
+    Department_approval.decision -> CATEGORICAL {AP:0.84, DN:0.16}
+    CRS_approval.decision -> CATEGORICAL {AP:0.88, DN:0.12}
+
+EXPERIMENTAL PARAMETERS
+    SCALING FACTORS:
+        TABLE_SIZES = employees, departments, event_volume
+        ROLE_COUNTS = frontdesk_per_division, manager_count
+        EVENT_VOLUME = total generated events
+
+    PROBABILITY SETTINGS:
+        PROBABILITY_NEW_EMPLOYEE = adjust existing vs new split
+        DEPARTMENT_DECISION_RATE = adjust AP/DN mix
+        CRS_DECISION_RATE = adjust AP/DN mix
+
+Notes: keep fill_spec.yaml for concrete per-attribute distributions and
+function bindings used at runtime; this file is a human-readable control page.
+
+END SPECIFICATION
+================================================================================
