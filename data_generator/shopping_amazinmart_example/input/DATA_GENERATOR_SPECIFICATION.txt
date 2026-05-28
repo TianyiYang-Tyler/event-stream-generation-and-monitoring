@@ -1,0 +1,92 @@
+================================================================================
+AMAZINMART ONLINE SHOPPING - DATA GENERATOR SPECIFICATION
+================================================================================
+
+Compact, high-level generator spec combining EventType-style attribute mapping
+with an explicit Experimental Parameters section for running controlled tests.
+
+GLOBAL
+    BASE_TIME_GRANULARITY = 1 MINUTE
+    SEED = 42
+    SCHEMA = appuser
+    DROP_EXISTING = True
+    TIME_RANGE = 0 -> 12 HOUR
+
+RESOURCES
+    Users = 30,000 (seeded), Products = 100 items @ stock 2,000 each, Warehouses = 8
+    Functions = choose_or_generate_user_60_40, choose_amazin_item_in_stock,
+                construct_order_details, get_user_credit_card,
+                generate_warehouse_location, generate_weighted_rating,
+                generate_customer_comment
+
+ENTITY TYPES
+    Users: Faker-generated user records; 60% seeded / 40% new during generation
+    Products: retail catalog with stock tracking per item
+    Warehouses: regional hubs used for fulfillment locations
+
+GENERATION TYPES (glossary)
+    GENERATE: call a function to create a value (params allowed)
+    SELECT: choose from a population (table/column)
+    DEPENDENT_SELECT: selection depending on another attribute
+    LOOKUP: read values from a related table (foreign-key style)
+    COPY: reuse values from a source event matched by a key
+
+ATTRIBUTE MAPPING
+    Order.user_id -> GENERATE(choose_or_generate_user_60_40, probability_new=0.40)
+    Order.item_id -> DEPENDENT_SELECT(choose_amazin_item_in_stock)
+    Order.shipping_location -> LOOKUP(Users.address) MATCH_ON user_id
+    Order.order_details -> DEPENDENT_GENERATE(construct_order_details)
+
+    Confirm_payment.user_id -> COPY(Order.user_id) MATCH_ON order_id
+    Confirm_payment.shipping_location -> COPY(Order.shipping_location) MATCH_ON order_id
+    Confirm_payment.order_details -> COPY(Order.order_details) MATCH_ON order_id
+    Confirm_payment.credit_card_num -> DEPENDENT_GENERATE(get_user_credit_card)
+
+    AddItem.user_id -> COPY(Order.user_id) MATCH_ON order_id
+    AddItem.item_id -> DEPENDENT_SELECT(choose_amazin_item_in_stock)
+
+    Ship.user_id -> COPY(Order.user_id) MATCH_ON order_id
+    Ship.shipping_location -> COPY(Order.shipping_location) MATCH_ON order_id
+    Ship.order_details -> COPY(Order.order_details) MATCH_ON order_id
+
+    Confirm_arrival.user_id -> COPY(Order.user_id) MATCH_ON order_id
+    Confirm_arrival.shipping_location -> COPY(Order.shipping_location) MATCH_ON order_id
+    Confirm_arrival.order_details -> COPY(Order.order_details) MATCH_ON order_id
+
+    Delivery_out.user_id -> COPY(Order.user_id) MATCH_ON order_id
+    Delivery_out.delivery_location -> GENERATE(generate_warehouse_location)
+    Delivery_out.order_details -> COPY(Order.order_details) MATCH_ON order_id
+
+    Confirm_delivery.user_id -> COPY(Order.user_id) MATCH_ON order_id
+    Confirm_delivery.order_details -> COPY(Order.order_details) MATCH_ON order_id
+
+    Rate_order.user_id -> COPY(Order.user_id) MATCH_ON order_id
+    Rate_order.order_details -> COPY(Order.order_details) MATCH_ON order_id
+    Rate_order.customer_rating -> DEPENDENT_GENERATE(generate_weighted_rating)
+    Rate_order.customer_comment -> DEPENDENT_GENERATE(generate_customer_comment)
+
+DISTRIBUTIONS (summary)
+    Users.user_id -> CATEGORICAL {existing:0.60, new:0.40}
+    Products.stock -> INITIAL 2,000 per item (decrement on purchase)
+    Ratings.customer_rating -> CATEGORICAL {5:0.50, 4:0.25, 3:0.15, 2:0.07, 1:0.03}
+
+EXPERIMENTAL PARAMETERS
+    SCALING FACTORS:
+        TABLE_SIZES = users, products, warehouses, event_volume
+        PRODUCT_CATALOG_SIZE = number of distinct items
+        EVENT_VOLUME = total generated events
+
+    PROBABILITY SETTINGS:
+        PROBABILITY_NEW_USER = e.g. 0.60 / 0.20 to test new-user effects
+        RATING_DISTRIBUTION = adjust 1-5 star mix
+        REORDER_RATE = adjust repeat user activity (via session patterns)
+
+    INVENTORY SETTINGS:
+        INITIAL_STOCK_PER_PRODUCT = adjust stock depletion pressure
+        LOW_STOCK_BEHAVIOR = change handling for out-of-stock items
+
+Notes: keep `fill_spec.yaml` for concrete per-attribute distributions and
+function bindings used at runtime; this file is a human-readable control page.
+
+END SPECIFICATION
+================================================================================
