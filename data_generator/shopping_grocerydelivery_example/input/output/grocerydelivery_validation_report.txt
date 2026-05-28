@@ -1,0 +1,43 @@
+======================================================================
+FILLED STREAM VALIDATION REPORT
+======================================================================
+
+STRUCTURE VALIDATION
+----------------------------------------------------------------------
+Total events: 750,005
+Event type counts: {'Order': 57694, 'Confirm_payment': 57694, 'AddItem': 57694, 'Ship': 115388, 'Confirm_arrival': 115388, 'Delivery_out': 115388, 'Confirm_delivery': 115381, 'Rate_order': 115378}
+Distinct orders: 57,694
+Time-order violations: 0
+
+DISTRIBUTIONS (actual)
+----------------------------------------------------------------------
+
+customer_rating (Rate_order events):
+    1-star: 3,503 (3.0%)
+    2-star: 8,047 (7.0%)
+    3-star: 17,249 (14.9%)
+    4-star: 28,755 (24.9%)
+    5-star: 57,824 (50.1%)
+
+    Expected distribution:
+    5-star: 50.0%
+    4-star: 25.0%
+    3-star: 15.0%
+    2-star: 7.0%
+    1-star: 3.0%
+
+user_id split (seeded_max_user_id=50,000):
+    existing: 446,385 (59.5%)
+    new: 303,620 (40.5%)
+
+    Expected split: 60% existing / 40% new
+
+EVENT SEQUENCE VALIDATION
+----------------------------------------------------------------------
+Valid order flows: 57,694
+Incomplete order flows: 0
+
+ERROR / WARNING SUMMARY
+----------------------------------------------------------------------
+Total errors: 0
+Total warnings: 0
