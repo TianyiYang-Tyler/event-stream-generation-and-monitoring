@@ -1,0 +1,138 @@
+resources:
+  tables:
+    Employees:
+      primary_key: employee_id
+      pk_column: employee_id
+      columns: [employee_id, name, position, department_id]
+      insertable: true
+      id_sequence: true
+      where: employee_id IS NOT NULL
+    Departments:
+      primary_key: did
+      pk_column: did
+      columns: [did, name]
+      insertable: false
+      where: did IS NOT NULL
+
+events:
+  Apply:
+    employee_id:
+      category: generate
+      function_name: choose_or_generate_employee
+      params:
+        probability_new: 0.1
+        seeded_max_employee_id: 31000
+      distribution:
+        type: categorical
+        values:
+          existing: 0.9
+          new: 0.1
+        bucket_by:
+          kind: db_membership
+          table: Employees
+          column: employee_id
+          seeded_max_employee_id: 31000
+        tolerance: 0.08
+    application_details:
+      category: dependent_generate
+      function_name: generate_application_details
+      depends_on: [employee_id]
+
+  Department_approval:
+    # NOTE: employee_id must be an Advisor in the applicant's department, and
+    # must differ from the Apply and CRS_approval employee_ids (enforced in fn).
+    employee_id:
+      category: generate
+      function_name: choose_or_generate_employee
+      params:
+        probability_new: 0.1
+        seeded_max_employee_id: 31000
+      depends_on: [application_id]
+      distribution:
+        type: categorical
+        values:
+          existing: 0.9
+          new: 0.1
+        bucket_by:
+          kind: db_membership
+          table: Employees
+          column: employee_id
+          seeded_max_employee_id: 31000
+        tolerance: 0.08
+    decision:
+      category: dependent_generate
+      function_name: generate_department_decision
+      depends_on: [application_id, employee_id]
+      distribution:
+        type: categorical
+        values:
+          AP: 0.84
+          DN: 0.16
+        tolerance: 0.08
+    comment:
+      category: dependent_generate
+      function_name: generate_department_comment
+      depends_on: [application_id, decision]
+
+  CRS_approval:
+    # NOTE: employee_id must be a CRS correspondent, distinct from the Apply and
+    # Department_approval employee_ids (enforced in fn).
+    employee_id:
+      category: generate
+      function_name: choose_or_generate_employee
+      params:
+        probability_new: 0.1
+        seeded_max_employee_id: 31000
+      depends_on: [application_id]
+      distribution:
+        type: categorical
+        values:
+          existing: 0.9
+          new: 0.1
+        bucket_by:
+          kind: db_membership
+          table: Employees
+          column: employee_id
+          seeded_max_employee_id: 31000
+        tolerance: 0.08
+    decision:
+      category: dependent_generate
+      function_name: generate_crs_decision
+      depends_on: [application_id, employee_id]
+      distribution:
+        type: categorical
+        values:
+          AP: 0.88
+          DN: 0.12
+        tolerance: 0.08
+    comment:
+      category: dependent_generate
+      function_name: generate_crs_comment
+      depends_on: [application_id, decision]
+
+  Notify:
+    employee_id:
+      category: copy
+      source_event: Apply
+      source_attribute: employee_id
+      match_on: application_id
+    # These two copies make the engine index Department_approval and
+    # CRS_approval under application_id (so they're findable), and expose their
+    # decisions in context["attributes"] for the notification function. They are
+    # not part of the Notify skeleton, so they won't appear in the output XML --
+    # they exist only to drive the AND logic below.
+    dept_decision:
+      category: copy
+      source_event: Department_approval
+      source_attribute: decision
+      match_on: application_id
+    crs_decision:
+      category: copy
+      source_event: CRS_approval
+      source_attribute: decision
+      match_on: application_id
+    # Notify.decision = AP iff Department_approval.decision == AP AND CRS_approval.decision == AP
+    decision:
+      category: dependent_generate
+      function_name: generate_notification_decision
+      depends_on: [application_id, dept_decision, crs_decision]
