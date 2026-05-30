@@ -17,9 +17,9 @@ if str(REPO_ROOT) not in sys.path:
 from data_generator_engine.db_oracle import get_connection
 
 SEED = 42
-USERS_COUNT = 3000
-STATIONS_COUNT = 300
-BIKES_COUNT = 2000
+USERS_COUNT = 75000
+STATIONS_COUNT = 700
+BIKES_COUNT = 10000
 SCHEMA_NAME = "appuser"
 DROP_EXISTING = True
 STATION_INFO_URL = "https://gbfs.baywheels.com/gbfs/en/station_information.json"
@@ -186,26 +186,12 @@ def main() -> None:
 			drop_tables(cursor)
 		create_tables(cursor)
 
-		user_rows: list[tuple] = []
-		for i in range(1, USERS_COUNT + 1):
-			created_at = created_base + timedelta(minutes=5 * (i - 1))
-			user_rows.append(
-				(
-					i,
-					1000 + i,
-					fake.first_name(),
-					fake.last_name(),
-					fake.email(),
-					fake.numerify("###-###-####"),
-					fake.credit_card_number(card_type=None),
-					1 if random.random() < 0.7 else 0,
-					created_at,
-					updated_base,
-				)
-			)
+		# Insert users in batches to avoid huge in-memory lists and to show progress.
+		import time
 
-		cursor.executemany(
-			f"""
+		BATCH_SIZE = 5000
+
+		user_insert_sql = f"""
 			INSERT INTO {qualify('Users')} (
 				id,
 				user_id,
@@ -229,37 +215,44 @@ def main() -> None:
 				:9,
 				:10
 			)
-			""",
-			user_rows,
-		)
+			"""
 
-		station_rows: list[tuple] = []
-		for i in range(1, STATIONS_COUNT + 1):
-			name, longitude, latitude = station_catalog[(i - 1) % len(station_catalog)]
-			address = name
-			city = "San Francisco"
-			state = "CA"
-			postal_code = "94103"
-			capacity = random.randint(25, 60)
-			station_rows.append(
+		start = time.time()
+		batch = []
+		inserted = 0
+		for i in range(1, USERS_COUNT + 1):
+			created_at = created_base + timedelta(minutes=5 * (i - 1))
+			batch.append(
 				(
 					i,
-					i,
-					name,
-					round(longitude, 6),
-					round(latitude, 6),
-					address,
-					city,
-					state,
-					postal_code,
-					capacity,
-					datetime(2026, 4, 1, 8, 0, 0),
-					datetime(2026, 4, 20, 9, 0, 0),
+					1000 + i,
+					fake.first_name(),
+					fake.last_name(),
+					fake.email(),
+					fake.numerify("###-###-####"),
+					fake.credit_card_number(card_type=None),
+					1 if random.random() < 0.7 else 0,
+					created_at,
+					updated_base,
 				)
 			)
+			if len(batch) >= BATCH_SIZE:
+				cursor.executemany(user_insert_sql, batch)
+				conn.commit()
+				inserted += len(batch)
+				batch.clear()
+				elapsed = time.time() - start
+				print(f"Inserted {inserted}/{USERS_COUNT} users (elapsed {elapsed:.1f}s)")
 
-		cursor.executemany(
-			f"""
+		if batch:
+			cursor.executemany(user_insert_sql, batch)
+			conn.commit()
+			inserted += len(batch)
+			elapsed = time.time() - start
+			print(f"Inserted {inserted}/{USERS_COUNT} users (elapsed {elapsed:.1f}s)")
+
+		# Batch-insert stations with progress.
+		station_insert_sql = f"""
 			INSERT INTO {qualify('Stations')} (
 				station_id,
 				id,
@@ -287,35 +280,55 @@ def main() -> None:
 				:11,
 				:12
 			)
-			""",
-			station_rows,
-		)
+			"""
 
+		batch = []
+		inserted = 0
+		start = time.time()
+		for i in range(1, STATIONS_COUNT + 1):
+			name, longitude, latitude = station_catalog[(i - 1) % len(station_catalog)]
+			address = name
+			city = "San Francisco"
+			state = "CA"
+			postal_code = "94103"
+			capacity = random.randint(25, 60)
+			batch.append(
+				(
+					i,
+					i,
+					name,
+					round(longitude, 6),
+					round(latitude, 6),
+					address,
+					city,
+					state,
+					postal_code,
+					capacity,
+					datetime(2026, 4, 1, 8, 0, 0),
+					datetime(2026, 4, 20, 9, 0, 0),
+				)
+			)
+			if len(batch) >= BATCH_SIZE:
+				cursor.executemany(station_insert_sql, batch)
+				conn.commit()
+				inserted += len(batch)
+				batch.clear()
+				elapsed = time.time() - start
+				print(f"Inserted {inserted}/{STATIONS_COUNT} stations (elapsed {elapsed:.1f}s)")
+
+		if batch:
+			cursor.executemany(station_insert_sql, batch)
+			conn.commit()
+			inserted += len(batch)
+			elapsed = time.time() - start
+			print(f"Inserted {inserted}/{STATIONS_COUNT} stations (elapsed {elapsed:.1f}s)")
+
+		# Batch-insert bikes with progress.
 		status_choices = ["available", "rented", "maintenance"]
 		status_weights = [0.7, 0.2, 0.1]
 		model_choices = ["Classic", "E-Bike"]
-		bike_rows: list[tuple] = []
-		for i in range(1, BIKES_COUNT + 1):
-			model = random.choice(model_choices)
-			status = random.choices(status_choices, weights=status_weights, k=1)[0]
-			purchased_at = date.today() - timedelta(days=random.randint(120, 2000))
-			bike_rows.append(
-				(
-					i,
-					2000 + i,
-					"Golden Gate Gears",
-					model,
-					model,
-					status,
-					random.randint(1, STATIONS_COUNT),
-					purchased_at,
-					datetime(2026, 4, 2, 12, 0, 0),
-					updated_base,
-				)
-			)
 
-		cursor.executemany(
-			f"""
+		bike_insert_sql = f"""
 			INSERT INTO {qualify('Bikes')} (
 				id,
 				bike_id,
@@ -339,9 +352,43 @@ def main() -> None:
 				:9,
 				:10
 			)
-			""",
-			bike_rows,
-		)
+			"""
+
+		batch = []
+		inserted = 0
+		start = time.time()
+		for i in range(1, BIKES_COUNT + 1):
+			model = random.choice(model_choices)
+			status = random.choices(status_choices, weights=status_weights, k=1)[0]
+			purchased_at = date.today() - timedelta(days=random.randint(120, 2000))
+			batch.append(
+				(
+					i,
+					2000 + i,
+					"Golden Gate Gears",
+					model,
+					model,
+					status,
+					random.randint(1, STATIONS_COUNT),
+					purchased_at,
+					datetime(2026, 4, 2, 12, 0, 0),
+					updated_base,
+				)
+			)
+			if len(batch) >= BATCH_SIZE:
+				cursor.executemany(bike_insert_sql, batch)
+				conn.commit()
+				inserted += len(batch)
+				batch.clear()
+				elapsed = time.time() - start
+				print(f"Inserted {inserted}/{BIKES_COUNT} bikes (elapsed {elapsed:.1f}s)")
+
+		if batch:
+			cursor.executemany(bike_insert_sql, batch)
+			conn.commit()
+			inserted += len(batch)
+			elapsed = time.time() - start
+			print(f"Inserted {inserted}/{BIKES_COUNT} bikes (elapsed {elapsed:.1f}s)")
 
 		cursor.execute(
 			f"""

@@ -1,0 +1,76 @@
+======================================================================
+FILLED STREAM VALIDATION REPORT
+======================================================================
+
+RULE VALIDATION (RentBike -> ReportLocation* -> ReturnBike)
+----------------------------------------------------------------------
+total events            : 750,010
+event type counts       : {'RentBike': 53509, 'ReportLocation': 642992, 'ReturnBike': 53509}
+distinct sessions       : 53,509
+valid sessions          : 53,509
+invalid sessions        : 0
+time-order violations   : 0 (events whose time < previous; 0 means file is sorted ascending)
+
+DISTRIBUTIONS (actual)
+----------------------------------------------------------------------
+reports per (valid) session: mean=12.02
+    0 report(s): 1,109 sessions (2.1%)
+    1 report(s): 2,151 sessions (4.0%)
+    2 report(s): 2,231 sessions (4.2%)
+    3 report(s): 2,265 sessions (4.2%)
+    4 report(s): 2,222 sessions (4.2%)
+    5 report(s): 2,245 sessions (4.2%)
+    6 report(s): 2,204 sessions (4.1%)
+    7 report(s): 2,178 sessions (4.1%)
+    8 report(s): 2,262 sessions (4.2%)
+    9 report(s): 2,193 sessions (4.1%)
+    10 report(s): 2,194 sessions (4.1%)
+    11 report(s): 2,271 sessions (4.2%)
+    12 report(s): 2,224 sessions (4.2%)
+    13 report(s): 2,215 sessions (4.1%)
+    14 report(s): 2,305 sessions (4.3%)
+    15 report(s): 2,260 sessions (4.2%)
+    16 report(s): 2,313 sessions (4.3%)
+    17 report(s): 2,167 sessions (4.0%)
+    18 report(s): 2,266 sessions (4.2%)
+    19 report(s): 2,157 sessions (4.0%)
+    20 report(s): 2,303 sessions (4.3%)
+    21 report(s): 2,318 sessions (4.3%)
+    22 report(s): 2,279 sessions (4.3%)
+    23 report(s): 2,148 sessions (4.0%)
+    24 report(s): 1,029 sessions (1.9%)
+
+is_member (on RentBike):
+    0: 18,229 (34.1%)
+    1: 35,280 (65.9%)
+
+user_id new vs existing (split at seeded_max_user_id=76000):
+    existing: 42,906 (80.2%)
+    new: 10,603 (19.8%)
+    distinct users seen: 43,298
+
+RentBike station_id usage (target: uniform):
+    distinct stations used : 700
+    mean uses per station  : 76.4
+    min / max uses         : 47 / 102
+    max rel. deviation     : 0.385 (descriptive; sensitive to small samples)
+    reduced chi-square     : 1.332 (~1.0 = uniform; >>1 = uneven, <<1 = too even)
+
+ReturnBike station_id usage (target: uniform):
+    distinct stations used : 700
+    mean uses per station  : 76.4
+    min / max uses         : 38 / 138
+    max rel. deviation     : 0.805 (descriptive; sensitive to small samples)
+    reduced chi-square     : 4.130 (~1.0 = uniform; >>1 = uneven, <<1 = too even)
+
+SPEC TOLERANCE CHECKS (--fill-spec)
+----------------------------------------------------------------------
+  [RentBike.bike_id] uniform: reduced_chi2=1.332 max_rel_dev=0.385 (spec tol=0.1) -> PASS
+  [RentBike.station_id] uniform: reduced_chi2=1.332 max_rel_dev=0.385 (spec tol=0.1) -> PASS
+  [RentBike.user_id] existing: target=0.800 actual=0.802 tol=0.08 -> PASS
+  [RentBike.user_id] new: target=0.200 actual=0.198 tol=0.08 -> PASS
+  [ReturnBike.station_id] distance-constrained (not uniform by design): 700 stations used, chi2=4.13, min/max uses 38/138 -> INFO (clustering expected, no pass/fail)
+
+======================================================================
+VERDICT: ALL SESSIONS VALID; file is sorted ascending.
+======================================================================

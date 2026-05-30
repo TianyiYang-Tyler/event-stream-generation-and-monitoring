@@ -1,102 +1,71 @@
-def choose_or_generate_user(context, probability_new=0.2):
+def choose_or_generate_user(context, probability_new=0.2, seeded_max_user_id=None):
 	import random
 
 	from faker import Faker
 
-	from data_generator_engine.db_oracle import get_connection
+	cache = context.get("resource_cache")
+	if cache is None:
+		raise RuntimeError("resource_cache is required in context")
 
-	conn = get_connection()
-	cursor = conn.cursor()
-	if random.random() >= probability_new:
-		cursor.execute(
-			"""
-			SELECT user_id FROM (
-				SELECT user_id
-				FROM Users
-				WHERE user_id IS NOT NULL
-				ORDER BY dbms_random.value
-			) WHERE ROWNUM = 1
-			"""
-		)
-		row = cursor.fetchone()
-		if row is not None:
-			return row[0]
+	# "Existing" means a user that was seeded in the database. New users created
+	# during the run must NOT count as existing, or the seeded/new ratio drifts
+	# (the "existing" pool would grow with every new user we mint).
+	#
+	# The seeded pool is captured ONCE, on the first call, by snapshotting the
+	# user_ids currently in the cache. At that point no new users have been
+	# minted yet (this function is what mints them), so the snapshot is exactly
+	# the seeded set. This is robust: it does not depend on a hardcoded
+	# threshold that can silently drift when USERS_COUNT changes.
+	#
+	# If seeded_max_user_id is explicitly provided, it is still honored as an
+	# upper bound (useful if you want to cap the seeded set deliberately).
+	seeded_ids = getattr(cache, "_seeded_user_ids_cache", None)
+	if seeded_ids is None:
+		seeded_ids = [
+			uid for uid in cache.table("Users").keys()
+			if uid is not None
+			and (seeded_max_user_id is None or uid <= seeded_max_user_id)
+		]
+		cache._seeded_user_ids_cache = seeded_ids
 
-	cursor.execute("SELECT MAX(user_id) FROM Users")
-	max_user_id = cursor.fetchone()[0]
-	if max_user_id is None:
-		max_user_id = 1000
+	# Preserve original RNG call order: draw once to decide existing vs new.
+	if seeded_ids and random.random() >= probability_new:
+		return random.choice(seeded_ids)
 
-	cursor.execute("SELECT MAX(id) FROM Users")
-	max_id = cursor.fetchone()[0]
-	if max_id is None:
-		max_id = 0
-
-	new_user_id = max_user_id + 1
-	new_id = max_id + 1
+	new_user_id, new_id = cache.next_ids("Users")
 	faker = Faker()
 	first_name = faker.first_name()
 	last_name = faker.last_name()
 	email = f"{first_name.lower()}.{last_name.lower()}@example.com"
-	phone = faker.numerify("212-###-####")
+	phone = faker.numerify("###-###-####")
 	credit_card_num = faker.credit_card_number()
 	is_member = 1 if faker.boolean() else 0
-	cursor.execute(
-		"""
-		INSERT INTO Users (
-			id,
-			user_id,
-			first_name,
-			last_name,
-			email,
-			phone,
-			credit_card_num,
-			is_member,
-			created_at,
-			updated_at
-		) VALUES (
-			:1,
-			:2,
-			:3,
-			:4,
-			:5,
-			:6,
-			:7,
-			:8,
-			CURRENT_TIMESTAMP,
-			CURRENT_TIMESTAMP
-		)
-		""",
-		(
-			new_id,
-			new_user_id,
-			first_name,
-			last_name,
-			email,
-			phone,
-			credit_card_num,
-			is_member,
-		),
-	)
-	conn.commit()
+
+	cache.add_row("Users", {
+		"id": new_id,
+		"user_id": new_user_id,
+		"first_name": first_name,
+		"last_name": last_name,
+		"email": email,
+		"phone": phone,
+		"credit_card_num": credit_card_num,
+		"is_member": is_member,
+	})
 	return new_user_id
 
 
 def choose_station(context):
 	import random
 
-	from data_generator_engine.db_oracle import get_connection
+	cache = context.get("resource_cache")
+	if cache is None:
+		raise RuntimeError("resource_cache is required in context")
 
-	conn = get_connection()
-	cursor = conn.cursor()
-	cursor.execute(
-		"""
-		SELECT station_id
-		FROM Stations
-		WHERE bikes_available > 0
-		"""
-	)
-	station_ids = [row[0] for row in cursor.fetchall()]
+	station_ids = [
+		sid
+		for sid, station in cache.table("Stations").items()
+		if (station.get("bikes_available") or 0) > 0
+	]
 	if not station_ids:
 		raise ValueError("No stations with available bikes")
 	return random.choice(station_ids)
@@ -105,61 +74,47 @@ def choose_station(context):
 def choose_available_bike(context):
 	import random
 
-	from data_generator_engine.db_oracle import get_connection
+	cache = context.get("resource_cache")
+	if cache is None:
+		raise RuntimeError("resource_cache is required in context")
 
 	station_id = context["attributes"].get("station_id")
 	if station_id is None:
 		raise KeyError("station_id is required before choosing a bike")
+	try:
+		station_id = int(station_id)
+	except (TypeError, ValueError):
+		raise KeyError("station_id must be numeric before choosing a bike")
 
-	conn = get_connection()
-	cursor = conn.cursor()
-	cursor.execute(
-		"""
-		SELECT bike_id
-		FROM Bikes
-		WHERE station_id = :1
-		  AND status IN ('available')
-		  AND bike_id IS NOT NULL
-		""",
-		(station_id,),
-	)
-	bike_ids = [row[0] for row in cursor.fetchall()]
+	bike_ids = [
+		bid
+		for bid, bike in cache.table("Bikes").items()
+		if bike.get("station_id") == station_id and bike.get("status") == "available"
+	]
 	if not bike_ids:
 		raise ValueError(f"No available bikes at station_id={station_id}")
-	
+
 	selected_bike_id = random.choice(bike_ids)
-	
-	# Update bike status to 'rented'
-	cursor.execute(
-		"""
-		UPDATE Bikes
-		SET status = 'rented'
-		WHERE bike_id = :1
-		""",
-		(selected_bike_id,),
-	)
-	
-	# Decrement bikes_available and increment capacity_available at station
-	cursor.execute(
-		"""
-		UPDATE Stations
-		SET bikes_available = bikes_available - 1,
-		    capacity_available = capacity_available + 1
-		WHERE station_id = :1
-		""",
-		(station_id,),
-	)
-	
-	conn.commit()
+
+	# Mutate bike + station availability in memory; flushed in one batch later.
+	cache.table("Bikes")[selected_bike_id]["status"] = "rented"
+	cache.mark_dirty("Bikes", selected_bike_id)
+
+	station = cache.table("Stations")[station_id]
+	station["bikes_available"] = (station.get("bikes_available") or 0) - 1
+	station["capacity_available"] = (station.get("capacity_available") or 0) + 1
+	cache.mark_dirty("Stations", station_id)
+
 	return selected_bike_id
 
 
-def generate_report_location(context, max_miles=40, nyc_bounds=None, attempts=10):
+def generate_report_location(context, max_miles=10, bounds=None, attempts=10):
 	import math
 	import random
 
-	if nyc_bounds is None:
-		nyc_bounds = (-74.25909, -73.70018, 40.477399, 40.917577)
+	if bounds is None:
+		bounds = (-74.25909, -73.70018, 40.477399, 40.917577)
+	bounds = tuple(bounds)
 
 	def parse_location(value):
 		if value is None:
@@ -223,7 +178,7 @@ def generate_report_location(context, max_miles=40, nyc_bounds=None, attempts=10
 		)
 		return math.degrees(lon2), math.degrees(lat2)
 
-	lon_min, lon_max, lat_min, lat_max = nyc_bounds
+	lon_min, lon_max, lat_min, lat_max = bounds
 	for _ in range(int(attempts)):
 		distance = random.random() * max_distance
 		bearing = random.random() * 2 * math.pi
@@ -234,14 +189,17 @@ def generate_report_location(context, max_miles=40, nyc_bounds=None, attempts=10
 	return (round(lon0, 6), round(lat0, 6))
 
 
-def choose_return_station(context, max_miles=40, nyc_bounds=None):
+def choose_return_station(context, max_miles=10, bounds=None):
 	import math
 	import random
 
-	from data_generator_engine.db_oracle import get_connection
+	cache = context.get("resource_cache")
+	if cache is None:
+		raise RuntimeError("resource_cache is required in context")
 
-	if nyc_bounds is None:
-		nyc_bounds = (-74.25909, -73.70018, 40.477399, 40.917577)
+	if bounds is None:
+		bounds = (-74.25909, -73.70018, 40.477399, 40.917577)
+	bounds = tuple(bounds)
 
 	def parse_location(value):
 		if value is None:
@@ -289,73 +247,65 @@ def choose_return_station(context, max_miles=40, nyc_bounds=None):
 			)
 		except KeyError:
 			last_location = None
+		# A session may legitimately have no ReportLocation (rent then return
+		# with no location reports). In that case the bike is still at its
+		# pickup station, so fall back to the RentBike's recorded location.
+		if last_location is None:
+			try:
+				last_location = runtime_state.lookup(
+					"RentBike", ["session_id"], match_key, "location_data"
+				)
+			except KeyError:
+				last_location = None
 
 	if last_location is None:
 		last_location = attributes.get("location_data")
 
 	last_coords = parse_location(last_location)
 	if last_coords is None:
-		raise KeyError("last ReportLocation location_data is required before ReturnBike station selection")
+		raise KeyError("location_data is required before ReturnBike station selection (no ReportLocation or RentBike location found for this session)")
 
 	lon0, lat0 = last_coords
 
-	conn = get_connection()
-	cursor = conn.cursor()
-	try:
-		cursor.execute(
-			"""
-			SELECT station_id, longitude, latitude
-			FROM Stations
-			WHERE capacity_available > 0
-			"""
-		)
-		rows = cursor.fetchall()
+	rows = [
+		(sid, station.get("longitude"), station.get("latitude"))
+		for sid, station in cache.table("Stations").items()
+		if (station.get("capacity_available") or 0) > 0
+	]
+	if not rows:
+		raise ValueError("No stations with capacity_available > 0")
 
-		if not rows:
-			raise ValueError("No stations with capacity_available > 0")
+	max_distance = float(max_miles)
+	if max_distance <= 0:
+		raise ValueError("max_miles must be positive")
 
-		max_distance = float(max_miles)
-		if max_distance <= 0:
-			raise ValueError("max_miles must be positive")
+	lon_min, lon_max, lat_min, lat_max = bounds
+	candidates = []
+	for station_id, lon, lat in rows:
+		if lon is None or lat is None:
+			continue
+		if not (lon_min <= lon <= lon_max and lat_min <= lat <= lat_max):
+			continue
+		distance = haversine_miles(lon0, lat0, float(lon), float(lat))
+		if distance <= max_distance:
+			candidates.append(station_id)
 
-		lon_min, lon_max, lat_min, lat_max = nyc_bounds
-		candidates = []
-		for station_id, lon, lat in rows:
-			if lon is None or lat is None:
-				continue
-			if not (lon_min <= lon <= lon_max and lat_min <= lat <= lat_max):
-				continue
-			distance = haversine_miles(lon0, lat0, float(lon), float(lat))
-			if distance <= max_distance:
-				candidates.append(station_id)
-
+	if not candidates:
+		candidates = [row[0] for row in rows]
 		if not candidates:
-			fallback_ids = [row[0] for row in rows if row[0] is not None]
-			if not fallback_ids:
-				raise ValueError("No stations within range of last ReportLocation")
-			selected_station_id = random.choice(fallback_ids)
-		else:
-			selected_station_id = random.choice(candidates)
-		cursor.execute(
-			"""
-			UPDATE Bikes
-			SET station_id = :1,
-			    status = 'available'
-			WHERE bike_id = :2
-			""",
-			(selected_station_id, bike_id),
-		)
-		cursor.execute(
-			"""
-			UPDATE Stations
-			SET bikes_available = bikes_available + 1,
-			    capacity_available = capacity_available - 1
-			WHERE station_id = :1
-			""",
-			(selected_station_id,),
-		)
-		conn.commit()
-		return selected_station_id
-	finally:
-		cursor.close()
-		conn.close()
+			raise ValueError("No stations within range of last ReportLocation")
+
+	selected_station_id = random.choice(candidates)
+
+	# Mutate bike + station state in memory; flushed in one batch later.
+	if bike_id in cache.table("Bikes"):
+		cache.table("Bikes")[bike_id]["station_id"] = selected_station_id
+		cache.table("Bikes")[bike_id]["status"] = "available"
+		cache.mark_dirty("Bikes", bike_id)
+
+	station = cache.table("Stations")[selected_station_id]
+	station["bikes_available"] = (station.get("bikes_available") or 0) + 1
+	station["capacity_available"] = (station.get("capacity_available") or 0) - 1
+	cache.mark_dirty("Stations", selected_station_id)
+
+	return selected_station_id

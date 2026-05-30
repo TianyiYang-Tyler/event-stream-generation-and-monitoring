@@ -1,3 +1,49 @@
+resources:
+  tables:
+    Stations:
+      primary_key: station_id
+      pk_column: id
+      columns:
+      - station_id
+      - id
+      - name
+      - longitude
+      - latitude
+      - capacity
+      - capacity_available
+      - bikes_available
+      insertable: false
+      mutable_columns:
+      - bikes_available
+      - capacity_available
+    Users:
+      primary_key: user_id
+      pk_column: id
+      columns:
+      - id
+      - user_id
+      - first_name
+      - last_name
+      - email
+      - phone
+      - credit_card_num
+      - is_member
+      insertable: true
+      id_sequence: true
+      where: user_id IS NOT NULL
+    Bikes:
+      primary_key: bike_id
+      pk_column: id
+      columns:
+      - bike_id
+      - id
+      - station_id
+      - status
+      insertable: false
+      mutable_columns:
+      - station_id
+      - status
+      where: bike_id IS NOT NULL
 events:
   RentBike:
     user_id:
@@ -5,35 +51,24 @@ events:
       function_name: choose_or_generate_user
       params:
         probability_new: 0.2
-      # ~80% of rentals reuse an existing user, ~20% create a new one.
-      # We can't enumerate user_ids ahead of time, so we validate the
-      # *new vs existing* split by checking whether each user_id seen
-      # in RentBike.user_id was already present in the seeded Users table.
+        seeded_max_user_id: 1200
       distribution:
         type: categorical
-        # "existing" = user_id was in Users before generation started
-        # "new"      = user_id was created by choose_or_generate_user
         values:
           existing: 0.8
           new: 0.2
-        # how to bucket an observed user_id into existing/new at validation time
         bucket_by:
           kind: db_membership
-          table: Users
-          column: user_id
-          # user_ids present in the *seeded* range (<= seeded_max_user_id) are "existing"
-          seeded_max_user_id: 1200  # 1000 + USERS_COUNT(200) from resources.py
+          seeded_max_user_id: 1200
         tolerance: 0.08
     station_id:
       category: select
       function_name: choose_station
-      # choose_station picks uniformly among stations with bikes_available > 0.
-      # We treat the expected distribution as uniform over the 15 station_ids.
       distribution:
         type: uniform_over_column
         table: Stations
         column: station_id
-        tolerance: 0.10  # only 250 RentBike events / 15 stations -> ~17 each, expect noise
+        tolerance: 0.1
     station_name:
       category: lookup
       params:
@@ -42,7 +77,7 @@ events:
         where_column: station_id
         value_column: name
       depends_on:
-        - station_id
+      - station_id
     location_data:
       category: lookup
       params:
@@ -50,10 +85,10 @@ events:
         lookup_on: station_id
         where_column: station_id
         value_columns:
-          - longitude
-          - latitude
+        - longitude
+        - latitude
       depends_on:
-        - station_id
+      - station_id
     credit_card_num:
       category: lookup
       params:
@@ -62,7 +97,7 @@ events:
         where_column: user_id
         value_column: credit_card_num
       depends_on:
-        - user_id
+      - user_id
     is_member:
       category: lookup
       params:
@@ -71,20 +106,17 @@ events:
         where_column: user_id
         value_column: is_member
       depends_on:
-        - user_id
+      - user_id
     bike_id:
       category: dependent_select
       function_name: choose_available_bike
       depends_on:
-        - station_id
-      # choose_available_bike picks uniformly among available bikes at the
-      # chosen station. Marginal expected distribution over all bike_ids is
-      # roughly uniform over the seeded bikes (2001..2065).
+      - station_id
       distribution:
         type: uniform_over_column
         table: Bikes
         column: bike_id
-        tolerance: 0.10
+        tolerance: 0.1
   ReportLocation:
     user_id:
       category: copy
@@ -107,9 +139,7 @@ events:
       params:
         max_miles: 5
       depends_on:
-        - session_id
-      # location_data here is a (lon, lat) pair — not a categorical value —
-      # so we don't specify a categorical distribution.
+      - session_id
   ReturnBike:
     station_id:
       category: generate
@@ -117,16 +147,13 @@ events:
       params:
         max_miles: 5
       depends_on:
-        - session_id
-        - bike_id
-      # choose_return_station filters to stations within max_miles of the
-      # last ReportLocation, then picks uniformly. The marginal expected
-      # distribution is roughly uniform over the 15 stations.
+      - session_id
+      - bike_id
       distribution:
         type: uniform_over_column
         table: Stations
         column: station_id
-        tolerance: 0.10
+        tolerance: 0.1
     station_name:
       category: lookup
       params:
@@ -135,7 +162,7 @@ events:
         where_column: station_id
         value_column: name
       depends_on:
-        - station_id
+      - station_id
     location_data:
       category: lookup
       params:
@@ -143,10 +170,10 @@ events:
         lookup_on: station_id
         where_column: station_id
         value_columns:
-          - longitude
-          - latitude
+        - longitude
+        - latitude
       depends_on:
-        - station_id
+      - station_id
     user_id:
       category: copy
       source_event: RentBike

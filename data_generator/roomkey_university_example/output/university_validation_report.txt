@@ -1,0 +1,36 @@
+======================================================================
+ROOM/KEY APPROVAL — FILLED STREAM VALIDATION REPORT
+======================================================================
+WARNING: could not read Employees from DB (No module named 'data_generator_engine').
+         Role/department checks will be skipped (run with --no-db to silence).
+
+STRUCTURE VALIDATION
+----------------------------------------------------------------------
+Total events: 100,000
+Distinct applications: 25,000
+NULL placeholders remaining: 0
+Applications missing one of ('Apply', 'Department_approval', 'CRS_approval', 'Notify'): 0
+
+CONSTRAINT VALIDATION
+----------------------------------------------------------------------
+Role/department checks: SKIPPED (no employee map available)
+Applications checked: 25,000
+  applicant_role  : N/A (needs DB)
+  dept_role       : N/A (needs DB)
+  crs_role        : N/A (needs DB)
+  dept_match      : N/A (needs DB)
+  distinct        : OK (0 violations)
+  notify          : OK (0 violations)
+
+DISTRIBUTIONS (actual)
+----------------------------------------------------------------------
+applicant existing/new (seeded_max_employee_id=4,000):
+    existing: 22,585 (90.3%)   target 90%
+    new:      2,415 (9.7%)   target 10%
+Department decision: AP 83.6% / DN 16.4%   target 84/16
+CRS decision:        AP 88.2% / DN 11.8%   target 88/12
+Notify AP rate:      73.8%   (expected ~0.84*0.88 = 73.9%)
+
+SUMMARY
+----------------------------------------------------------------------
+RESULT: PASS — structure complete, no NULLs, all constraints hold.

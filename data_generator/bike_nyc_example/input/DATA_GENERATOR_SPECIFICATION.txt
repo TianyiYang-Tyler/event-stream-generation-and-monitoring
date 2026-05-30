@@ -1,0 +1,78 @@
+================================================================================
+NYC BIKE RENTAL - DATA GENERATOR SPECIFICATION
+================================================================================
+
+Compact, high-level generator spec combining EventType-style attribute mapping
+with an explicit Experimental Parameters section for running controlled tests.
+
+GLOBAL
+    BASE_TIME_GRANULARITY = 1 MINUTE
+    SEED = 42
+    SCHEMA = appuser
+    DROP_EXISTING = True
+    TIME_RANGE = 0 -> 12 HOUR
+
+RESOURCES
+    Stations = 400, Users = 10,000, Bikes = 2,000
+    Map_bounds = ([0,100],[0,100])
+    Functions = city_block_distance, choose_or_generate_user, choose_station,
+                            choose_available_bike, choose_return_station, generate_report_location
+
+ENTITY TYPES
+    Stations: real-world NYC GBFS station records
+    Users: Faker-generated user records with membership and payment fields
+    Bikes: inventory records assigned to stations with status categories
+
+GENERATION TYPES (glossary)
+    GENERATE: call a function to create a value (params allowed)
+    SELECT: choose from a population (table/column)
+    DEPENDENT_SELECT: selection depending on another attribute
+    LOOKUP: read values from a related table (foreign-key style)
+    COPY: reuse values from a source event matched by a key
+
+ATTRIBUTE MAPPING
+    RentBike.user_id -> GENERATE(choose_or_generate_user, probability_new=0.20)
+    RentBike.station_id -> SELECT(choose_station)
+    RentBike.bike_id -> DEPENDENT_SELECT(choose_available_bike) DEPENDS_ON station_id
+    RentBike.station_name -> LOOKUP(Stations.name) MATCH_ON station_id
+    RentBike.location_data -> LOOKUP(Stations.longitude, Stations.latitude) MATCH_ON station_id
+    RentBike.credit_card_num -> LOOKUP(Users.credit_card_num) MATCH_ON user_id
+    RentBike.is_member -> LOOKUP(Users.is_member) MATCH_ON user_id
+
+    ReportLocation.location_data -> GENERATE(generate_report_location, max_miles=10)
+
+    ReturnBike.station_id -> GENERATE(choose_return_station, max_miles=10)
+    ReturnBike.station_name -> LOOKUP(Stations.name) MATCH_ON station_id
+    ReturnBike.location_data -> LOOKUP(Stations.longitude, Stations.latitude) MATCH_ON station_id
+    ReturnBike.user_id -> COPY(RentBike.user_id) MATCH_ON session_id
+    ReturnBike.bike_id -> COPY(RentBike.bike_id) MATCH_ON session_id
+    ReturnBike.credit_card_num -> COPY(RentBike.credit_card_num) MATCH_ON session_id
+    ReturnBike.is_member -> COPY(RentBike.is_member) MATCH_ON session_id
+
+DISTRIBUTIONS (summary)
+    Stations.capacity -> UNIFORM [10,50]
+    Bikes.station_id -> UNIFORM_OVER_COLUMN(Stations.station_id) tolerance=0.10
+    Bikes.status -> CATEGORICAL {available:0.80, in_use:0.15, maintenance:0.05}
+    Users.user_id -> CATEGORICAL {existing:0.80, new:0.20}
+
+EXPERIMENTAL PARAMETERS
+    SCALING FACTORS:
+        TABLE_SIZES = stations, users, bikes, event_volume
+        STATION_DENSITY = stations per area
+        EVENT_VOLUME = total generated events
+
+    PROBABILITY SETTINGS:
+        PROBABILITY_NEW_USER = e.g. 0.50 / 0.10 to test new-user effects
+        MEMBERSHIP_RATIO = adjust member vs non-member
+        INITIAL_STATUS_DISTRIBUTION = adjust bike availability mix
+        DISTRIBUTION_BY_STATION = uniform vs skewed assignments
+
+    GEOGRAPHIC SETTINGS:
+        LOCATION_BOUNDS = expand/shrink service area
+        RETURN_DISTANCE_LIMIT = max return distance for choose_return_station
+
+Notes: keep `fill_spec.yaml` for concrete per-attribute distributions and
+function bindings used at runtime; this file is a human-readable control page.
+
+END SPECIFICATION
+================================================================================
